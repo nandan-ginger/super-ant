@@ -15,7 +15,7 @@ const config = {
   geminiApiKey: process.env.GEMINI_API_KEY || '',
   geminiChatModel: process.env.GEMINI_CHAT_MODEL || 'gemini-2.0-flash',
   geminiEmbeddingModel: process.env.GEMINI_EMBEDDING_MODEL || 'gemini-embedding-exp-03-07',
-
+  geminiLiveModelTTS: process.env.GEMINI_TTS_MODEL || 'gemini-3.1-flash-tts-preview',
   // PostgreSQL
   pg: {
     host: process.env.PG_HOST || 'localhost',

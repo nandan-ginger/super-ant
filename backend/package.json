@@ -9,6 +9,7 @@
     "test": "node --test tests/"
   },
   "dependencies": {
+    "@google/genai": "^2.8.0",
     "@google/generative-ai": "^0.21.0",
     "cors": "^2.8.5",
     "dotenv": "^16.4.5",

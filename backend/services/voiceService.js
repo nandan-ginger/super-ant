@@ -1,52 +1,92 @@
 'use strict';
+const { GoogleGenAI } = require('@google/genai');
+const config = require('../config');
 const logger = require('../utils/logger');
 
-/**
- * Voice Service — Architecture Placeholder
- *
- * Future voice pipeline:
- *   Microphone (browser)
- *     → MediaRecorder API (PCM/WebM)
- *     → Upload via Socket.IO binary or REST
- *     → transcribe() [Google Speech-to-Text or Gemini Live Audio]
- *     → Gemini text response
- *     → synthesize() [Google Text-to-Speech or ElevenLabs]
- *     → Stream audio back to browser
- *
- * When implementing:
- *   1. Install: @google-cloud/speech, @google-cloud/text-to-speech
- *   2. Replace stubs below with real API calls
- *   3. Add audio streaming via Socket.IO binary frames
- */
+// Initialize the new Google GenAI SDK client
+const ai = new GoogleGenAI({ apiKey: config.geminiApiKey });
 
 /**
  * Transcribe audio buffer to text.
- * @param {Buffer} audioBuffer  Raw audio data from the browser
+ * @param {Buffer|string} audioBuffer  Raw audio data from the browser (Buffer or base64 string)
  * @param {string} [mimeType]   Audio MIME type (e.g. 'audio/webm;codecs=opus')
  * @returns {Promise<string>}   Transcribed text
  */
 async function transcribe(audioBuffer, mimeType = 'audio/webm') {
-  logger.warn('VoiceService.transcribe() called but voice support is not yet implemented');
-  // TODO: Integrate Google Speech-to-Text API
-  // const client = new SpeechClient();
-  // const [response] = await client.recognize({ audio: { content: audioBuffer }, config: { ... } });
-  // return response.results.map(r => r.alternatives[0].transcript).join(' ');
-  throw new Error('Voice transcription not yet implemented');
+  try {
+    logger.info('VoiceService: Transcribing audio...', { mimeType });
+    const base64Data = Buffer.isBuffer(audioBuffer)
+      ? audioBuffer.toString('base64')
+      : audioBuffer;
+
+    const response = await ai.models.generateContent({
+      model: config.geminiChatModel || 'gemini-2.5-flash',
+      contents: [
+        {
+          inlineData: {
+            data: base64Data,
+            mimeType: mimeType
+          }
+        },
+        'Transcribe the spoken audio into text. Return ONLY the transcription, nothing else. If it is in Arabic, transcribe it in Arabic. If English, transcribe in English.'
+      ]
+    });
+
+    const transcript = response.text ? response.text.trim() : '';
+    logger.info('VoiceService: Transcribed successfully', { transcriptLength: transcript.length });
+    return transcript;
+  } catch (err) {
+    logger.error('VoiceService: Transcription failed', { error: err.message });
+    throw err;
+  }
 }
 
 /**
  * Synthesize text to audio.
  * @param {string} text   Text to convert to speech
  * @param {string} [languageCode]  BCP-47 language code, default 'en-US'
- * @returns {Promise<Buffer>}  Audio buffer (MP3)
+ * @returns {Promise<string>}  Base64 encoded audio data (raw PCM L16 24kHz Mono)
  */
 async function synthesize(text, languageCode = 'en-US') {
-  logger.warn('VoiceService.synthesize() called but voice support is not yet implemented');
-  // TODO: Integrate Google Text-to-Speech API
-  // const client = new TextToSpeechClient();
-  // const [response] = await client.synthesizeSpeech({ input: { text }, voice: { languageCode }, audioConfig: { audioEncoding: 'MP3' } });
-  // return response.audioContent;
-  throw new Error('Voice synthesis not yet implemented');
+  try {
+    logger.info('VoiceService: Synthesizing text to speech...', { textLength: text.length, languageCode });
+
+    // Choose voice depending on language (optional, Aoede is generic and good)
+    const voiceName = 'Aoede';
+
+    const response = await ai.models.generateContent({
+      model: config.geminiLiveModelTTS,
+      contents: `Read the following text out loud in ${languageCode === 'ar' ? 'Arabic' : 'English'}: "${text}"`,
+      config: {
+        responseModalities: ['AUDIO'],
+        speechConfig: {
+          voiceConfig: {
+            prebuiltVoiceConfig: {
+              voiceName: voiceName
+            }
+          }
+        }
+      }
+    });
+
+    const candidates = response.candidates;
+    if (candidates?.[0]?.content?.parts) {
+      for (const part of candidates[0].content.parts) {
+        if (part.inlineData) {
+          logger.info('VoiceService: Synthesized audio successfully', {
+            mimeType: part.inlineData.mimeType,
+            dataLength: part.inlineData.data?.length
+          });
+          return part.inlineData.data; // Return base64 string
+        }
+      }
+    }
+
+    throw new Error('No audio returned in response parts from Gemini TTS model');
+  } catch (err) {
+    logger.error('VoiceService: Synthesis failed', { error: err.message });
+    throw err;
+  }
 }
 
 /**
@@ -54,7 +94,8 @@ async function synthesize(text, languageCode = 'en-US') {
  * @returns {boolean}
  */
 function isVoiceAvailable() {
-  return false; // Set to true once implemented
+  return !!config.geminiApiKey;
 }
 
 module.exports = { transcribe, synthesize, isVoiceAvailable };
+

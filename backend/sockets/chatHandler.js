@@ -2,11 +2,13 @@
 const logger = require('../utils/logger');
 const sessionManager = require('../services/sessionManager');
 const geminiService = require('../services/gemini');
+const voiceService = require('../services/voiceService');
 const leadDetector = require('../services/leadDetector');
 const retriever = require('../rag/retriever');
 const { upsertSession, touchSession: dbTouchSession } = require('../database/queries/sessions');
 const { saveMessage } = require('../database/queries/messages');
 const { saveLead } = require('../database/queries/leads');
+
 
 /**
  * Attach all Socket.IO chat event handlers to a connected socket.
@@ -76,13 +78,12 @@ function attachChatHandlers(socket) {
   // ─── chat_message ────────────────────────────────────────────────────────────
   socket.on('chat_message', async (data) => {
     try {
-      const { message } = data || {};
-      if (!message || typeof message !== 'string' || !message.trim()) {
-        socket.emit('error', { message: 'chat_message: message field is required' });
+      const { message, audio, mimeType, language } = data || {};
+      
+      if ((!message || typeof message !== 'string' || !message.trim()) && !audio) {
+        socket.emit('error', { message: 'chat_message: message or audio field is required' });
         return;
       }
-
-      const userMessage = message.trim();
 
       // ── [DEBUG] API call tracker ─────────────────────────────────────────────
       let apiCallCount = 0;
@@ -95,10 +96,26 @@ function attachChatHandlers(socket) {
       };
       logger.info(`[MSG-START] chat_message received`, {
         sessionId,
-        message: userMessage.slice(0, 120),
-        messageLength: userMessage.length,
+        hasAudio: !!audio,
+        messageLength: message?.length || 0,
       });
       // ─────────────────────────────────────────────────────────────────────────
+
+      let userMessage = (message || '').trim();
+
+      // If audio is provided, transcribe it first
+      if (audio) {
+        trackApiCall('transcribe (Gemini Chat/Understanding API)', { mimeType });
+        userMessage = await voiceService.transcribe(audio, mimeType);
+        
+        if (!userMessage) {
+          socket.emit('error', { message: 'Failed to understand the audio. Please speak clearly.' });
+          return;
+        }
+
+        // Send the transcription to the client so it can display the user bubble
+        socket.emit('transcription_complete', { text: userMessage });
+      }
 
       logger.info(`chat_message from session ${sessionId}`, { message: userMessage.slice(0, 80) });
 
@@ -132,7 +149,7 @@ function attachChatHandlers(socket) {
       logger.debug(`[DEBUG] retriever.retrieveContext called`, {
         sessionId,
         hasEmbeddings: hasChunks,
-        willEmbedQuery: hasChunks, // embedQuery only called if chunks exist
+        willEmbedQuery: hasChunks,
       });
       if (hasChunks) trackApiCall('embedQuery (Gemini Embedding API)', { model: 'text-embedding-004', reason: 'similarity search for RAG' });
 
@@ -159,6 +176,18 @@ function attachChatHandlers(socket) {
 
       // Signal end of stream
       socket.emit('chat_response', { chunk: '', done: true });
+
+      // If the user query was audio, generate the synthesized audio response
+      if (audio) {
+        trackApiCall('synthesize (Gemini TTS API)', { model: 'gemini-3.1-flash-tts-preview', language: language || 'en' });
+        try {
+          const base64Audio = await voiceService.synthesize(fullResponse, language || 'en');
+          socket.emit('voice_response', { audio: base64Audio });
+        } catch (synthErr) {
+          logger.error('Failed to synthesize response speech', { sessionId, error: synthErr.message });
+          // Fall back gracefully - text response is already streamed
+        }
+      }
 
       // ── [DEBUG] Summary of all API calls made for this message ───────────────
       logger.info(`[MSG-END] API calls made for this message: ${apiCallCount}`, {

@@ -35,6 +35,23 @@
   let leadFormShown = false;
   let contextIndexed = false;
 
+  // Voice State
+  let currentLanguage = localStorage.getItem('ginger_lang') || 'en';
+  let mediaRecorder = null;
+  let audioChunks = [];
+  let isRecording = false;
+  let recordTimerInterval = null;
+  let recordDurationSec = 0;
+  let activeAudioSource = null; // Track currently playing voice response to allow interrupting
+  let currentUserVoiceBubble = null;
+  let lastBotBubble = null;
+  let currentQueryIsVoice = false;
+  let currentVoiceResponseText = '';
+
+
+
+
+
   // ─── Styles ──────────────────────────────────────────────────────────────────
   const STYLES = `
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
@@ -315,12 +332,207 @@
       .gc-panel { width: calc(100vw - 16px); right: 8px; bottom: 88px; }
       .gc-launcher { right: 16px; bottom: 16px; }
     }
+
+    /* ── Language Selector ── */
+    .gc-lang-selector {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      background: rgba(255, 255, 255, 0.12);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 20px;
+      padding: 3px 8px;
+      cursor: pointer;
+      font-size: 11px;
+      font-weight: 600;
+      color: rgba(255, 255, 255, 0.6);
+      margin-left: auto;
+      margin-right: 8px;
+      user-select: none;
+      transition: background 0.2s, border-color 0.2s;
+    }
+    .gc-lang-selector:hover {
+      background: rgba(255, 255, 255, 0.18);
+      border-color: rgba(255, 255, 255, 0.2);
+    }
+    .gc-lang-opt {
+      transition: color 0.2s;
+    }
+    .gc-lang-opt.gc-active {
+      color: #FFFFFF;
+      text-shadow: 0 0 4px rgba(255, 255, 255, 0.4);
+    }
+    .gc-lang-divider {
+      color: rgba(255, 255, 255, 0.2);
+    }
+
+    /* ── Mic Button ── */
+    .gc-mic-btn {
+      width: 36px;
+      height: 36px;
+      background: rgba(255, 255, 255, 0.06);
+      border: none;
+      border-radius: 10px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      transition: background 0.2s, transform 0.1s;
+    }
+    .gc-mic-btn:hover {
+      background: rgba(255, 255, 255, 0.12);
+    }
+    .gc-mic-btn:active {
+      transform: scale(0.95);
+    }
+    .gc-mic-btn svg {
+      width: 18px;
+      height: 18px;
+      fill: #E2E8F0;
+    }
+    .gc-mic-btn.gc-recording {
+      background: #EF4444;
+      animation: gc-pulse-red 1.5s infinite;
+    }
+    .gc-mic-btn.gc-recording svg {
+      fill: white;
+    }
+
+    @keyframes gc-pulse-red {
+      0% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7); }
+      70% { box-shadow: 0 0 0 10px rgba(239, 68, 68, 0); }
+      100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); }
+    }
+
+    /* ── Recording overlay ── */
+    .gc-recording-indicator {
+      display: none;
+      flex: 1;
+      align-items: center;
+      gap: 8px;
+      color: #EF4444;
+      font-size: 13.5px;
+      font-weight: 500;
+      padding: 8px 0;
+    }
+    .gc-recording-dot {
+      width: 8px;
+      height: 8px;
+      background: #EF4444;
+      border-radius: 50%;
+      animation: gc-blink 1s infinite alternate;
+    }
+    @keyframes gc-blink {
+      from { opacity: 0.3; }
+      to { opacity: 1; }
+    }
+
+    /* ── Custom Voice Player inside Chat Bubble ── */
+    .gc-voice-player {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 12px;
+      padding: 8px 12px;
+      margin-top: 6px;
+      min-width: 200px;
+    }
+    .gc-user .gc-voice-player {
+      background: rgba(0, 0, 0, 0.15);
+      border-color: rgba(255, 255, 255, 0.1);
+    }
+    .gc-play-btn {
+      width: 28px;
+      height: 28px;
+      background: #6C63FF;
+      border: none;
+      border-radius: 50%;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      transition: background 0.2s, transform 0.1s;
+    }
+    .gc-play-btn:hover {
+      background: #5b54e0;
+    }
+    .gc-play-btn:active {
+      transform: scale(0.92);
+    }
+    .gc-play-btn svg {
+      width: 12px;
+      height: 12px;
+      fill: white;
+    }
+    .gc-player-slider {
+      flex: 1;
+      height: 4px;
+      background: rgba(255, 255, 255, 0.2);
+      border-radius: 2px;
+      position: relative;
+      cursor: pointer;
+    }
+    .gc-player-progress {
+      position: absolute;
+      left: 0;
+      top: 0;
+      bottom: 0;
+      width: 0%;
+      background: #6C63FF;
+      border-radius: 2px;
+    }
+    .gc-user .gc-player-progress {
+      background: #FFFFFF;
+    }
+    .gc-player-time {
+      font-size: 11px;
+      color: #94A3B8;
+      font-family: monospace;
+      white-space: nowrap;
+      min-width: 32px;
+      text-align: right;
+      user-select: none;
+    }
+    .gc-user .gc-player-time {
+      color: rgba(255, 255, 255, 0.75);
+    }
+    .gc-voice-transcript {
+      font-size: 13px;
+      line-height: 1.5;
+      margin-top: 6px;
+      color: #E2E8F0;
+    }
+    .gc-user .gc-voice-transcript {
+      color: white;
+    }
+    .gc-transcript-loading {
+      font-size: 12px;
+      font-style: italic;
+      color: #64748B;
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      margin-top: 4px;
+    }
+    .gc-user .gc-transcript-loading {
+      color: rgba(255, 255, 255, 0.6);
+    }
   `;
 
   // ─── SVG Icons ───────────────────────────────────────────────────────────────
   const ICON_CHAT = `<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H5.17L4 17.17V4h16v12z"/><path d="M7 9h10M7 13h7" stroke="white" stroke-width="1.5" stroke-linecap="round" fill="none"/></svg>`;
   const ICON_CLOSE = `<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>`;
   const ICON_SEND = `<svg viewBox="0 0 24 24"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>`;
+  const ICON_MIC = `<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3zm5.3-3c0 3-2.54 5.1-5.3 5.1S6.7 14 6.7 11H5c0 3.41 2.72 6.23 6 6.72V21h2v-3.28c3.28-.48 6-3.3 6-6.72h-1.7z" fill="white"/></svg>`;
+  const ICON_STOP = `<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M6 6h12v12H6V6z" fill="white"/></svg>`;
+  const ICON_PLAY = `<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M8 5v14l11-7z" fill="white"/></svg>`;
+  const ICON_PAUSE = `<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z" fill="white"/></svg>`;
+
+
 
   // ─── DOM Builder ─────────────────────────────────────────────────────────────
   function buildWidget() {
@@ -354,11 +566,16 @@
     header.innerHTML = `
       <div class="gc-avatar">🤖</div>
       <div class="gc-header-info">
-        <div class="gc-header-name">Ginger AI Assistant</div>
+        <div class="gc-header-name">SuperAnt</div>
         <div class="gc-header-status">
           <span class="gc-status-dot"></span>
           <span id="gc-status-text">Analysing page…</span>
         </div>
+      </div>
+      <div class="gc-lang-selector" id="gc-lang-selector" title="Switch Language">
+        <span class="gc-lang-opt ${currentLanguage === 'en' ? 'gc-active' : ''}" id="gc-lang-en" data-lang="en">EN</span>
+        <span class="gc-lang-divider">|</span>
+        <span class="gc-lang-opt ${currentLanguage === 'ar' ? 'gc-active' : ''}" id="gc-lang-ar" data-lang="ar">AR</span>
       </div>
       <button class="gc-close-btn" id="gc-close-btn" aria-label="Close chat">✕</button>
     `;
@@ -374,6 +591,10 @@
     inputArea.className = 'gc-input-area';
     inputArea.innerHTML = `
       <div class="gc-input-row">
+        <div class="gc-recording-indicator" id="gc-recording-indicator">
+          <span class="gc-recording-dot"></span>
+          <span id="gc-recording-text">Recording... (0s)</span>
+        </div>
         <textarea
           class="gc-input"
           id="gc-input"
@@ -381,6 +602,9 @@
           rows="1"
           aria-label="Chat input"
         ></textarea>
+        <button class="gc-mic-btn" id="gc-mic-btn" aria-label="Record voice">
+          ${ICON_MIC}
+        </button>
         <button class="gc-send-btn" id="gc-send-btn" aria-label="Send message" disabled>
           ${ICON_SEND}
         </button>
@@ -390,7 +614,7 @@
     // Footer
     const footer = document.createElement('div');
     footer.className = 'gc-footer';
-    footer.innerHTML = `Powered by <a href="https://gingertechnologies.app" target="_blank" rel="noopener">Ginger AI</a>`;
+    footer.innerHTML = `Powered by <a href="https://www.scribbleandconnect.com/" target="_blank" rel="noopener">Scribble & Connect</a>`;
 
     panel.appendChild(header);
     panel.appendChild(messages);
@@ -407,9 +631,65 @@
       messages,
       input: document.getElementById('gc-input'),
       sendBtn: document.getElementById('gc-send-btn'),
+      micBtn: document.getElementById('gc-mic-btn'),
+      langSelector: document.getElementById('gc-lang-selector'),
       closeBtn: document.getElementById('gc-close-btn'),
       statusText: document.getElementById('gc-status-text'),
+      recordingIndicator: document.getElementById('gc-recording-indicator'),
+      recordingText: document.getElementById('gc-recording-text'),
     };
+  }
+
+  // ─── Markdown Parser ────────────────────────────────────────────────────────
+  function formatMarkdown(text) {
+    if (!text) return '';
+
+    // Escape HTML tags to prevent XSS
+    let html = text
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;');
+
+    // Bold (**text** or __text__)
+    html = html.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+    html = html.replace(/__(.*?)__/g, '<strong>$1</strong>');
+
+    // Italic (*text* or _text_)
+    html = html.replace(/\*(.*?)\*/g, '<em>$1</em>');
+    html = html.replace(/_(.*?)_/g, '<em>$1</em>');
+
+    // Unordered list items (* or - followed by spaces)
+    const lines = html.split('\n');
+    let inList = false;
+    const processedLines = [];
+
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i];
+      const listMatch = line.match(/^\s*[*+-]\s+(.*)$/);
+      if (listMatch) {
+        if (!inList) {
+          processedLines.push('<ul style="margin: 4px 0; padding-left: 20px; list-style-type: disc;">');
+          inList = true;
+        }
+        processedLines.push(`<li style="margin: 2px 0;">${listMatch[1]}</li>`);
+      } else {
+        if (inList) {
+          processedLines.push('</ul>');
+          inList = false;
+        }
+        processedLines.push(line);
+      }
+    }
+    if (inList) {
+      processedLines.push('</ul>');
+    }
+
+    html = processedLines.join('\n');
+
+    // Replace remaining newlines with <br>
+    html = html.replace(/\n/g, '<br>');
+
+    return html;
   }
 
   // ─── Message Rendering ───────────────────────────────────────────────────────
@@ -423,7 +703,14 @@
 
     const bubble = document.createElement('div');
     bubble.className = 'gc-bubble';
-    bubble.textContent = text;
+
+    if (role === 'bot') {
+      bubble.dataset.rawText = text;
+      bubble.innerHTML = formatMarkdown(text);
+      lastBotBubble = bubble; // Save the last bot bubble reference for appending audio response
+    } else {
+      bubble.textContent = text;
+    }
 
     if (role === 'bot') {
       msgEl.appendChild(avatar);
@@ -438,6 +725,312 @@
 
     return bubble; // return bubble so we can update it during streaming
   }
+
+  // ─── Playable Audio Chat Bubbles Helper Functions ──────────────────────────
+
+  /**
+   * Compiles a raw 16-bit little-endian mono PCM buffer into a playable WAV Blob URL.
+   */
+  function pcmToWav(base64PCM, sampleRate = 24000) {
+    try {
+      const binaryString = atob(base64PCM);
+      const len = binaryString.length;
+      const bytes = new Uint8Array(len);
+      for (let i = 0; i < len; i++) {
+        bytes[i] = binaryString.charCodeAt(i);
+      }
+
+      const wavHeader = new ArrayBuffer(44);
+      const view = new DataView(wavHeader);
+
+      const writeString = (view, offset, string) => {
+        for (let i = 0; i < string.length; i++) {
+          view.setUint8(offset + i, string.charCodeAt(i));
+        }
+      };
+
+      writeString(view, 0, 'RIFF');
+      view.setUint32(4, 36 + len, true);
+      writeString(view, 8, 'WAVE');
+      writeString(view, 12, 'fmt ');
+      view.setUint32(16, 16, true);
+      view.setUint16(20, 1, true); // raw PCM format = 1
+      view.setUint16(22, 1, true); // channel count = 1
+      view.setUint32(24, sampleRate, true);
+      view.setUint32(28, sampleRate * 2, true); // byte rate
+      view.setUint16(32, 2, true); // block align
+      view.setUint16(34, 16, true); // bits per sample
+      writeString(view, 36, 'data');
+      view.setUint32(40, len, true);
+
+      const blob = new Blob([wavHeader, bytes.buffer], { type: 'audio/wav' });
+      return URL.createObjectURL(blob);
+    } catch (err) {
+      console.error('[Ginger] Failed compiling PCM to WAV', err);
+      return '';
+    }
+  }
+
+  /**
+   * Appends an audio message bubble with custom glassmorphic player controls.
+   */
+  function appendAudioMessage(els, role, audioUrl, transcriptionText = '') {
+    const msgEl = document.createElement('div');
+    msgEl.className = `gc-msg gc-${role}`;
+
+    const avatar = document.createElement('div');
+    avatar.className = 'gc-msg-avatar';
+    avatar.textContent = role === 'bot' ? '🤖' : '👤';
+
+    const bubble = document.createElement('div');
+    bubble.className = 'gc-bubble';
+
+    // Custom voice player container
+    const playerEl = document.createElement('div');
+    playerEl.className = 'gc-voice-player';
+
+    const playBtn = document.createElement('button');
+    playBtn.className = 'gc-play-btn';
+    playBtn.innerHTML = ICON_PLAY;
+
+    const slider = document.createElement('div');
+    slider.className = 'gc-player-slider';
+
+    const progress = document.createElement('div');
+    progress.className = 'gc-player-progress';
+    slider.appendChild(progress);
+
+    const timeEl = document.createElement('span');
+    timeEl.className = 'gc-player-time';
+    timeEl.textContent = '00:00';
+
+    playerEl.appendChild(playBtn);
+    playerEl.appendChild(slider);
+    playerEl.appendChild(timeEl);
+    bubble.appendChild(playerEl);
+
+    // Transcription text container
+    let transcriptEl = null;
+    if (role === 'user') {
+      transcriptEl = document.createElement('div');
+      if (transcriptionText) {
+        transcriptEl.className = 'gc-voice-transcript';
+        transcriptEl.textContent = transcriptionText;
+      } else {
+        transcriptEl.className = 'gc-transcript-loading';
+        transcriptEl.innerHTML = '<span>⏳</span> Transcribing voice message...';
+      }
+      bubble.appendChild(transcriptEl);
+    } else {
+      // For bot voice responses, text replay is disabled.
+      // Uncomment this block if you want to show the text transcription under the bot's voice note.
+      /*
+      transcriptEl = document.createElement('div');
+      if (transcriptionText) {
+        transcriptEl.className = 'gc-voice-transcript';
+        transcriptEl.textContent = transcriptionText;
+      } else {
+        transcriptEl.className = 'gc-voice-transcript';
+        transcriptEl.textContent = '(Audio response)';
+      }
+      bubble.appendChild(transcriptEl);
+      */
+    }
+
+    if (role === 'bot') {
+      msgEl.appendChild(avatar);
+      msgEl.appendChild(bubble);
+      lastBotBubble = bubble;
+    } else {
+      msgEl.appendChild(bubble);
+      msgEl.appendChild(avatar);
+    }
+
+    els.messages.appendChild(msgEl);
+    scrollToBottom(els.messages);
+
+    const audio = new Audio(audioUrl);
+    let isPlayState = false;
+
+    const stopAudio = () => {
+      audio.pause();
+      audio.currentTime = 0;
+      progress.style.width = '0%';
+      playBtn.innerHTML = ICON_PLAY;
+      isPlayState = false;
+      if (activeAudioSource === audio) {
+        activeAudioSource = null;
+      }
+    };
+
+    const playAudio = () => {
+      if (activeAudioSource && typeof activeAudioSource.pause === 'function') {
+        try { activeAudioSource.pause(); } catch (_) { }
+      }
+      audio.play();
+      playBtn.innerHTML = ICON_PAUSE;
+      isPlayState = true;
+      activeAudioSource = audio;
+    };
+
+    playBtn.addEventListener('click', () => {
+      if (isPlayState) {
+        audio.pause();
+        playBtn.innerHTML = ICON_PLAY;
+        isPlayState = false;
+      } else {
+        playAudio();
+      }
+    });
+
+    audio.addEventListener('timeupdate', () => {
+      if (audio.duration) {
+        const pct = (audio.currentTime / audio.duration) * 100;
+        progress.style.width = `${pct}%`;
+        const formatTime = (secs) => {
+          const m = Math.floor(secs / 60).toString().padStart(2, '0');
+          const s = Math.floor(secs % 60).toString().padStart(2, '0');
+          return `${m}:${s}`;
+        };
+        timeEl.textContent = formatTime(audio.currentTime);
+      }
+    });
+
+    audio.addEventListener('loadedmetadata', () => {
+      const formatTime = (secs) => {
+        const m = Math.floor(secs / 60).toString().padStart(2, '0');
+        const s = Math.floor(secs % 60).toString().padStart(2, '0');
+        return `${m}:${s}`;
+      };
+      timeEl.textContent = formatTime(audio.duration);
+    });
+
+    audio.addEventListener('ended', () => {
+      stopAudio();
+    });
+
+    slider.addEventListener('click', (e) => {
+      const rect = slider.getBoundingClientRect();
+      const clickX = e.clientX - rect.left;
+      const width = rect.width;
+      if (width > 0 && audio.duration) {
+        audio.currentTime = (clickX / width) * audio.duration;
+        progress.style.width = `${(clickX / width) * 100}%`;
+      }
+    });
+
+    return {
+      bubble,
+      transcriptEl,
+      stop: stopAudio,
+      play: playAudio
+    };
+  }
+
+  /**
+   * Appends an audio player controls into an existing bot text bubble.
+   */
+  function appendVoicePlayerToBubble(bubble, base64PCM) {
+    const audioUrl = pcmToWav(base64PCM);
+    if (!audioUrl) return;
+
+    const playerEl = document.createElement('div');
+    playerEl.className = 'gc-voice-player';
+
+    const playBtn = document.createElement('button');
+    playBtn.className = 'gc-play-btn';
+    playBtn.innerHTML = ICON_PLAY;
+
+    const slider = document.createElement('div');
+    slider.className = 'gc-player-slider';
+
+    const progress = document.createElement('div');
+    progress.className = 'gc-player-progress';
+    slider.appendChild(progress);
+
+    const timeEl = document.createElement('span');
+    timeEl.className = 'gc-player-time';
+    timeEl.textContent = '00:00';
+
+    playerEl.appendChild(playBtn);
+    playerEl.appendChild(slider);
+    playerEl.appendChild(timeEl);
+    bubble.appendChild(playerEl);
+
+    const audio = new Audio(audioUrl);
+    let isPlayState = false;
+
+    const stopAudio = () => {
+      audio.pause();
+      audio.currentTime = 0;
+      progress.style.width = '0%';
+      playBtn.innerHTML = ICON_PLAY;
+      isPlayState = false;
+      if (activeAudioSource === audio) {
+        activeAudioSource = null;
+      }
+    };
+
+    const playAudio = () => {
+      if (activeAudioSource && typeof activeAudioSource.pause === 'function') {
+        try { activeAudioSource.pause(); } catch (_) { }
+      }
+      audio.play().catch(e => console.warn('[Ginger] Audio play interrupted or failed', e));
+      playBtn.innerHTML = ICON_PAUSE;
+      isPlayState = true;
+      activeAudioSource = audio;
+    };
+
+    playBtn.addEventListener('click', () => {
+      if (isPlayState) {
+        audio.pause();
+        playBtn.innerHTML = ICON_PLAY;
+        isPlayState = false;
+      } else {
+        playAudio();
+      }
+    });
+
+    audio.addEventListener('timeupdate', () => {
+      if (audio.duration) {
+        const pct = (audio.currentTime / audio.duration) * 100;
+        progress.style.width = `${pct}%`;
+        const formatTime = (secs) => {
+          const m = Math.floor(secs / 60).toString().padStart(2, '0');
+          const s = Math.floor(secs % 60).toString().padStart(2, '0');
+          return `${m}:${s}`;
+        };
+        timeEl.textContent = formatTime(audio.currentTime);
+      }
+    });
+
+    audio.addEventListener('loadedmetadata', () => {
+      const formatTime = (secs) => {
+        const m = Math.floor(secs / 60).toString().padStart(2, '0');
+        const s = Math.floor(secs % 60).toString().padStart(2, '0');
+        return `${m}:${s}`;
+      };
+      timeEl.textContent = formatTime(audio.duration);
+    });
+
+    audio.addEventListener('ended', () => {
+      stopAudio();
+    });
+
+    slider.addEventListener('click', (e) => {
+      const rect = slider.getBoundingClientRect();
+      const clickX = e.clientX - rect.left;
+      const width = rect.width;
+      if (width > 0 && audio.duration) {
+        audio.currentTime = (clickX / width) * audio.duration;
+        progress.style.width = `${(clickX / width) * 100}%`;
+      }
+    });
+
+    // Auto-play bot response
+    playAudio();
+  }
+
 
   function showTyping(els) {
     const typingEl = document.createElement('div');
@@ -491,10 +1084,10 @@
     scrollToBottom(els.messages);
 
     document.getElementById('gc-lead-submit-btn').addEventListener('click', () => {
-      const name     = document.getElementById('gc-lead-name')?.value?.trim();
-      const email    = document.getElementById('gc-lead-email')?.value?.trim();
-      const phone    = document.getElementById('gc-lead-phone')?.value?.trim();
-      const req      = document.getElementById('gc-lead-req')?.value?.trim();
+      const name = document.getElementById('gc-lead-name')?.value?.trim();
+      const email = document.getElementById('gc-lead-email')?.value?.trim();
+      const phone = document.getElementById('gc-lead-phone')?.value?.trim();
+      const req = document.getElementById('gc-lead-req')?.value?.trim();
 
       if (!email) {
         document.getElementById('gc-lead-email').style.borderColor = '#EF4444';
@@ -556,15 +1149,75 @@
       els.statusText.textContent = `Ready · ${data.strategy === 'direct' ? 'Full context' : data.chunkCount + ' chunks'}`;
     });
 
+    // Transcription complete event (when user voice message is transcribed)
+    socket.on('transcription_complete', (data) => {
+      if (currentUserVoiceBubble) {
+        currentUserVoiceBubble.transcriptEl.className = 'gc-voice-transcript';
+        currentUserVoiceBubble.transcriptEl.textContent = data.text;
+      }
+    });
+
+    // Voice response event (contains base64 encoded raw PCM audio response)
+    socket.on('voice_response', (data) => {
+      if (data.audio) {
+        if (currentQueryIsVoice) {
+          const audioUrl = pcmToWav(data.audio);
+          if (audioUrl) {
+            // Append bot voice message bubble and trigger autoplay
+            // Pass currentVoiceResponseText to allow optional transcription showing if uncommented in appendAudioMessage
+            const audioMsg = appendAudioMessage(els, 'bot', audioUrl, currentVoiceResponseText);
+            audioMsg.play();
+            // Clear voice text response
+            currentVoiceResponseText = '';
+          }
+        } else if (lastBotBubble) {
+          appendVoicePlayerToBubble(lastBotBubble, data.audio);
+        }
+      }
+    });
+
     // Streaming response handler
     socket.on('chat_response', (data) => {
+      if (currentQueryIsVoice) {
+        // Suppress text rendering for bot's voice replies
+        if (!data.done) {
+          currentVoiceResponseText = (currentVoiceResponseText || '') + data.chunk;
+
+          /* UNCOMMENT THIS BLOCK to enable streaming text replay in addition to voice response
+          if (!currentStreamEl) {
+            removeTyping();
+            currentStreamEl = appendMessage(els, 'bot', '');
+          }
+          const accumulated = (currentStreamEl.dataset.rawText || '') + data.chunk;
+          currentStreamEl.dataset.rawText = accumulated;
+          currentStreamEl.innerHTML = formatMarkdown(accumulated);
+          scrollToBottom(els.messages);
+          */
+        } else {
+          // Stream complete
+          removeTyping();
+          isTyping = false;
+
+          /* UNCOMMENT THIS BLOCK to enable streaming text replay in addition to voice response
+          currentStreamEl = null;
+          */
+
+          els.sendBtn.disabled = false;
+          els.input.disabled = false;
+          els.input.focus();
+        }
+        return;
+      }
+
       if (!data.done) {
         // First chunk — replace typing indicator with streaming bubble
         if (!currentStreamEl) {
           removeTyping();
           currentStreamEl = appendMessage(els, 'bot', '');
         }
-        currentStreamEl.textContent += data.chunk;
+        const accumulated = (currentStreamEl.dataset.rawText || '') + data.chunk;
+        currentStreamEl.dataset.rawText = accumulated;
+        currentStreamEl.innerHTML = formatMarkdown(accumulated);
         scrollToBottom(els.messages);
       } else {
         // Stream complete
@@ -593,6 +1246,177 @@
       els.sendBtn.disabled = false;
       els.input.disabled = false;
     });
+  }
+
+
+
+  // ─── Recording functions ──────────────────────────────────────────────────────
+  async function toggleRecording(els) {
+    // If currently playing bot audio, stop it
+    if (activeAudioSource) {
+      try { activeAudioSource.stop(); } catch (_) { }
+      activeAudioSource = null;
+    }
+
+    if (isRecording) {
+      stopRecording(els);
+    } else {
+      await startRecording(els);
+    }
+  }
+
+  async function startRecording(els) {
+    try {
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        alert('Your browser does not support audio recording');
+        return;
+      }
+
+      audioChunks = [];
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+
+      // Select supported MIME type
+      let mimeType = 'audio/webm';
+      if (!MediaRecorder.isTypeSupported(mimeType)) {
+        mimeType = 'audio/ogg';
+      }
+      if (!MediaRecorder.isTypeSupported(mimeType)) {
+        mimeType = 'audio/mp4';
+      }
+      if (!MediaRecorder.isTypeSupported(mimeType)) {
+        mimeType = ''; // Let browser choose
+      }
+
+      mediaRecorder = new MediaRecorder(stream, mimeType ? { mimeType } : undefined);
+
+      mediaRecorder.ondataavailable = (event) => {
+        if (event.data && event.data.size > 0) {
+          audioChunks.push(event.data);
+        }
+      };
+
+      mediaRecorder.onstop = async () => {
+        // Stop all tracks in the stream
+        stream.getTracks().forEach(track => track.stop());
+
+        // Process recorded audio
+        const audioBlob = new Blob(audioChunks, { type: mediaRecorder.mimeType || 'audio/webm' });
+        if (audioBlob.size < 1000) {
+          // Recording is too short
+          return;
+        }
+
+        currentQueryIsVoice = true;
+        currentVoiceResponseText = '';
+
+        // Render user voice message bubble immediately
+        const audioUrl = URL.createObjectURL(audioBlob);
+        currentUserVoiceBubble = appendAudioMessage(els, 'user', audioUrl);
+
+        // Convert blob to base64
+        const reader = new FileReader();
+        reader.readAsDataURL(audioBlob);
+        reader.onloadend = () => {
+          const base64Data = reader.result.split(',')[1];
+
+          // Show typing indicator immediately while transcribing
+          showTyping(els);
+          isTyping = true;
+          els.sendBtn.disabled = true;
+          els.input.disabled = true;
+
+          // Emit audio message
+          socket.emit('chat_message', {
+            audio: base64Data,
+            mimeType: audioBlob.type,
+            language: currentLanguage
+          });
+        };
+      };
+
+      // Start recording
+      mediaRecorder.start(100); // chunk every 100ms
+      isRecording = true;
+      els.micBtn.classList.add('gc-recording');
+      els.micBtn.innerHTML = ICON_STOP;
+
+      // Update UI: Hide text area, show recording indicator
+      els.input.style.display = 'none';
+      els.recordingIndicator.style.display = 'flex';
+      els.sendBtn.disabled = true;
+
+      // Start duration timer
+      recordDurationSec = 0;
+      els.recordingText.textContent = `Recording... (0s)`;
+      recordTimerInterval = setInterval(() => {
+        recordDurationSec++;
+        els.recordingText.textContent = `Recording... (${recordDurationSec}s)`;
+
+        // Safety limit: auto stop at 60 seconds
+        if (recordDurationSec >= 60) {
+          stopRecording(els);
+        }
+      }, 1000);
+
+    } catch (err) {
+      console.error('[Ginger] Failed to start voice recording', err);
+      alert('Failed to access microphone. Please check permissions.');
+    }
+  }
+
+  function stopRecording(els) {
+    if (!mediaRecorder || mediaRecorder.state === 'inactive') return;
+
+    mediaRecorder.stop();
+    isRecording = false;
+    els.micBtn.classList.remove('gc-recording');
+    els.micBtn.innerHTML = ICON_MIC;
+
+    // Reset UI: Show text area, hide recording indicator
+    els.input.style.display = 'block';
+    els.recordingIndicator.style.display = 'none';
+    els.input.disabled = false;
+    els.input.focus();
+
+    // Clear duration timer
+    if (recordTimerInterval) {
+      clearInterval(recordTimerInterval);
+      recordTimerInterval = null;
+    }
+  }
+
+  // ─── Language Selector ───────────────────────────────────────────────────────
+  function initLanguageSelector(els) {
+    const selector = els.langSelector;
+    if (!selector) return;
+
+    selector.addEventListener('click', (e) => {
+      const option = e.target.closest('.gc-lang-opt');
+      if (!option) return;
+
+      const lang = option.getAttribute('data-lang');
+      if (lang === currentLanguage) return;
+
+      currentLanguage = lang;
+      localStorage.setItem('ginger_lang', lang);
+
+      // Update UI active class
+      selector.querySelectorAll('.gc-lang-opt').forEach(el => {
+        el.classList.toggle('gc-active', el.getAttribute('data-lang') === lang);
+      });
+
+      // Update placeholder language
+      if (lang === 'ar') {
+        els.input.placeholder = 'اسألني أي شيء عن هذه الصفحة...';
+      } else {
+        els.input.placeholder = 'Ask me anything about this page...';
+      }
+    });
+
+    // Set initial placeholder based on saved language
+    if (currentLanguage === 'ar') {
+      els.input.placeholder = 'اسألني أي شيء عن هذه الصفحة...';
+    }
   }
 
   // ─── Context Update ───────────────────────────────────────────────────────────
@@ -626,6 +1450,15 @@
   function sendMessage(els) {
     if (!socket || isTyping) return;
 
+    currentQueryIsVoice = false;
+    currentVoiceResponseText = '';
+
+    // Interrupt any active audio playback
+    if (activeAudioSource) {
+      try { activeAudioSource.stop(); } catch (_) { }
+      activeAudioSource = null;
+    }
+
     const message = els.input.value.trim();
     if (!message) return;
 
@@ -642,6 +1475,7 @@
 
     socket.emit('chat_message', { message });
   }
+
 
   // ─── UI Utils ─────────────────────────────────────────────────────────────────
   function autoResizeTextarea(textarea) {
@@ -698,6 +1532,9 @@
     // Welcome message
     showWelcomeMessage(els);
 
+    // Initialise language selector
+    initLanguageSelector(els);
+
     // Event listeners
     els.launcher.addEventListener('click', () => togglePanel(els, !isOpen));
     els.closeBtn.addEventListener('click', () => togglePanel(els, false));
@@ -716,6 +1553,10 @@
 
     els.sendBtn.addEventListener('click', () => sendMessage(els));
 
+    if (els.micBtn) {
+      els.micBtn.addEventListener('click', () => toggleRecording(els));
+    }
+
     // Connect Socket.IO
     loadSocketIO(() => connectSocket(els));
 
@@ -724,7 +1565,7 @@
 
     // Call ready callback if provided
     if (typeof cfg.ready === 'function') {
-      try { cfg.ready(); } catch (_) {}
+      try { cfg.ready(); } catch (_) { }
     }
   }
 
