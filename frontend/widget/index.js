@@ -47,10 +47,43 @@
   let lastBotBubble = null;
   let currentQueryIsVoice = false;
   let currentVoiceResponseText = '';
+  // Stores a message/audio payload that was interrupted by session expiry,
+  // to be re-emitted automatically after context is restored.
+  let pendingMessage = null;
 
+  // ─── Client-side embedding cache (sessionStorage, cleared on tab close) ────────
+  const EMBEDDING_CACHE_KEY = 'ginger_emb_' + WIDGET_CODE;
+  const PAGE_CONTEXT_CACHE_KEY = 'ginger_ctx_' + WIDGET_CODE;
 
+  function saveEmbeddingCache(embeddedChunks, pageContext) {
+    try {
+      sessionStorage.setItem(EMBEDDING_CACHE_KEY, JSON.stringify(embeddedChunks));
+      if (pageContext) {
+        sessionStorage.setItem(PAGE_CONTEXT_CACHE_KEY, JSON.stringify(pageContext));
+      }
+    } catch (e) {
+      console.warn('[Ginger] Failed to cache embeddings in sessionStorage', e);
+    }
+  }
 
+  function loadEmbeddingCache() {
+    try {
+      const raw = sessionStorage.getItem(EMBEDDING_CACHE_KEY);
+      const ctxRaw = sessionStorage.getItem(PAGE_CONTEXT_CACHE_KEY);
+      if (!raw) return null;
+      return {
+        embeddedChunks: JSON.parse(raw),
+        pageContext: ctxRaw ? JSON.parse(ctxRaw) : null,
+      };
+    } catch (e) {
+      return null;
+    }
+  }
 
+  function clearEmbeddingCache() {
+    sessionStorage.removeItem(EMBEDDING_CACHE_KEY);
+    sessionStorage.removeItem(PAGE_CONTEXT_CACHE_KEY);
+  }
 
   // ─── Styles ──────────────────────────────────────────────────────────────────
   const STYLES = `
@@ -82,7 +115,6 @@
       box-shadow: 0 6px 32px rgba(108, 99, 255, 0.65);
     }
     .gc-launcher svg { width: 26px; height: 26px; fill: white; transition: transform 0.3s ease; }
-    .gc-launcher.gc-open svg { transform: rotate(90deg); }
 
     /* Notification dot */
     .gc-dot {
@@ -821,20 +853,6 @@
         transcriptEl.innerHTML = '<span>⏳</span> Transcribing voice message...';
       }
       bubble.appendChild(transcriptEl);
-    } else {
-      // For bot voice responses, text replay is disabled.
-      // Uncomment this block if you want to show the text transcription under the bot's voice note.
-      /*
-      transcriptEl = document.createElement('div');
-      if (transcriptionText) {
-        transcriptEl.className = 'gc-voice-transcript';
-        transcriptEl.textContent = transcriptionText;
-      } else {
-        transcriptEl.className = 'gc-voice-transcript';
-        transcriptEl.textContent = '(Audio response)';
-      }
-      bubble.appendChild(transcriptEl);
-      */
     }
 
     if (role === 'bot') {
@@ -1146,7 +1164,48 @@
 
     socket.on('context_indexed', (data) => {
       contextIndexed = true;
-      els.statusText.textContent = `Ready · ${data.strategy === 'direct' ? 'Full context' : data.chunkCount + ' chunks'}`;
+      els.statusText.textContent = `Ready · ${data.strategy === 'direct' ? 'Full context' : data.chunkCount + ' chunks'}${
+        data.restoredFromCache ? ' (cached)' : ''
+      }`;
+      // Cache the embedded chunks client-side so reloads and expired sessions can restore fast
+      if (data.embeddedChunks && data.embeddedChunks.length > 0) {
+        const cachedCtx = loadEmbeddingCache()?.pageContext;
+        saveEmbeddingCache(data.embeddedChunks, cachedCtx);
+      }
+      // If context was restored after a session expiry and we have a pending message, re-send it now
+      if (data.restoredFromCache && pendingMessage) {
+        const payload = pendingMessage;
+        pendingMessage = null;
+        // Small delay to ensure server-side session is fully written before processing
+        setTimeout(() => {
+          socket.emit('chat_message', payload);
+        }, 200);
+      }
+    });
+
+    // Server signals that session/embeddings expired — re-upload from client cache
+    socket.on('context_required', (data) => {
+      console.warn('[Ginger] Server context expired — restoring from client cache. Reason:', data?.reason);
+      // Capture the pending message payload that was blocked (set by sendMessage/recording)
+      // pendingMessage is already set at this point
+      const cache = loadEmbeddingCache();
+      if (cache && cache.embeddedChunks && cache.embeddedChunks.length > 0) {
+        // Re-upload pre-computed embeddings (no scraping or API call needed)
+        socket.emit('context_update', {
+          pageContext: cache.pageContext,
+          embeddedChunks: cache.embeddedChunks,
+        });
+        els.statusText.textContent = 'Restoring context...';
+        // Show a helpful status indicator that message will retry
+        if (pendingMessage) {
+          showTyping(els);
+        }
+      } else {
+        // No cache available — fall back to re-scrape (must re-index, so pending message
+        // will be auto-sent when context_indexed fires with restoredFromCache)
+        console.warn('[Ginger] No client cache — falling back to full re-scrape');
+        sendContextUpdate(els);
+      }
     });
 
     // Transcription complete event (when user voice message is transcribed)
@@ -1182,26 +1241,11 @@
         // Suppress text rendering for bot's voice replies
         if (!data.done) {
           currentVoiceResponseText = (currentVoiceResponseText || '') + data.chunk;
-
-          /* UNCOMMENT THIS BLOCK to enable streaming text replay in addition to voice response
-          if (!currentStreamEl) {
-            removeTyping();
-            currentStreamEl = appendMessage(els, 'bot', '');
-          }
-          const accumulated = (currentStreamEl.dataset.rawText || '') + data.chunk;
-          currentStreamEl.dataset.rawText = accumulated;
-          currentStreamEl.innerHTML = formatMarkdown(accumulated);
-          scrollToBottom(els.messages);
-          */
         } else {
           // Stream complete
           removeTyping();
           isTyping = false;
-
-          /* UNCOMMENT THIS BLOCK to enable streaming text replay in addition to voice response
-          currentStreamEl = null;
-          */
-
+          pendingMessage = null; // Message was processed successfully
           els.sendBtn.disabled = false;
           els.input.disabled = false;
           els.input.focus();
@@ -1223,6 +1267,7 @@
         // Stream complete
         currentStreamEl = null;
         isTyping = false;
+        pendingMessage = null; // Message was processed successfully
         els.sendBtn.disabled = false;
         els.input.disabled = false;
         els.input.focus();
@@ -1423,11 +1468,25 @@
   function sendContextUpdate(els) {
     if (!socket || !socket.connected) return;
 
-    // Load context extractor if not yet loaded
+    // Fast path: if we have client-side cached embeddings, re-upload them directly.
+    // This avoids re-scraping the page and avoids calling the embedding API again.
+    const cache = loadEmbeddingCache();
+    if (cache && cache.embeddedChunks && cache.embeddedChunks.length > 0) {
+      socket.emit('context_update', {
+        pageContext: cache.pageContext,
+        embeddedChunks: cache.embeddedChunks,
+      });
+      els.statusText.textContent = 'Restoring context...';
+      return;
+    }
+
+    // No cache — do a fresh page scrape and embed
     const doExtract = () => {
       if (!window.GingerContextExtractor) return;
       try {
         const pageContext = window.GingerContextExtractor.extractPageContext();
+        // Save raw page context now; embeddings will be saved when context_indexed fires
+        saveEmbeddingCache([], pageContext);
         socket.emit('context_update', { pageContext });
         els.statusText.textContent = 'Analysing page…';
       } catch (err) {
@@ -1473,7 +1532,10 @@
     els.sendBtn.disabled = true;
     els.input.disabled = true;
 
-    socket.emit('chat_message', { message });
+    // Save the payload so it can be auto-retried if server session is expired (context_required)
+    const payload = { message };
+    pendingMessage = payload;
+    socket.emit('chat_message', payload);
   }
 
 

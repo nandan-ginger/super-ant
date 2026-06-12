@@ -151,4 +151,14 @@ function chunkCount(sessionId) {
   return sessions.get(sessionId)?.chunks.length ?? 0;
 }
 
-module.exports = { addChunks, search, hasChunks, clear, chunkCount, refreshTTL };
+/**
+ * Return all stored embedded chunks for a session (for client-side caching).
+ * Returns null if the session does not exist.
+ * @param {string} sessionId
+ * @returns {object[]|null}
+ */
+function getChunks(sessionId) {
+  return sessions.get(sessionId)?.chunks ?? null;
+}
+
+module.exports = { addChunks, search, hasChunks, clear, chunkCount, getChunks, refreshTTL };

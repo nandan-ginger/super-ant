@@ -42,9 +42,39 @@ function attachChatHandlers(socket) {
       logger.info(`context_update received for session ${sessionId}`, {
         title: data?.pageContext?.title,
         url: data?.pageContext?.url,
+        hasPrecomputedChunks: !!data?.embeddedChunks,
       });
 
-      const { pageContext } = data || {};
+      const { pageContext, embeddedChunks } = data || {};
+
+      // ── Fast path: client is re-uploading pre-computed embeddings from sessionStorage
+      if (embeddedChunks && Array.isArray(embeddedChunks) && embeddedChunks.length > 0) {
+        const store = require('../rag/store');
+        store.addChunks(sessionId, embeddedChunks);
+
+        // Restore session
+        await upsertSession({
+          id: sessionId,
+          widgetCode,
+          pageUrl: pageContext?.url,
+          pageTitle: pageContext?.title,
+        }).catch(() => {});
+
+        sessionManager.createOrRefreshSession(sessionId, { widgetCode });
+        if (pageContext) {
+          sessionManager.updatePageContext(sessionId, pageContext, 'rag');
+        }
+
+        logger.info(`Session ${sessionId} restored from client-cached embeddings`, { chunkCount: embeddedChunks.length });
+        socket.emit('context_indexed', {
+          strategy: 'rag',
+          chunkCount: embeddedChunks.length,
+          message: 'Context restored from cache.',
+          restoredFromCache: true,
+        });
+        return;
+      }
+
       if (!pageContext) {
         socket.emit('error', { message: 'context_update: pageContext is required' });
         return;
@@ -62,12 +92,18 @@ function attachChatHandlers(socket) {
       const { strategy, chunkCount } = await retriever.indexPageContext(sessionId, pageContext);
       sessionManager.updatePageContext(sessionId, pageContext, strategy);
 
+      // Retrieve the embedded chunks to send back to client for caching
+      const store = require('../rag/store');
+      const embeddedChunksToCache = store.getChunks ? store.getChunks(sessionId) : null;
+
       logger.info(`Page indexed for session ${sessionId}`, { strategy, chunkCount });
 
       socket.emit('context_indexed', {
         strategy,
         chunkCount,
         message: `Page indexed successfully using "${strategy}" strategy.`,
+        // Send back embedded chunks so client can cache them in sessionStorage
+        embeddedChunks: embeddedChunksToCache,
       });
     } catch (err) {
       logger.error('context_update handler error', { sessionId, error: err.message });
@@ -146,6 +182,16 @@ function attachChatHandlers(socket) {
       // ── Context retrieval ────────────────────────────────────────────────────
       const pageContext = sessionManager.getPageContext(sessionId);
       const hasChunks = require('../rag/store').hasChunks(sessionId);
+
+      // ── If session expired and no embeddings: ask client to re-upload their cached chunks
+      if (!hasChunks && !pageContext) {
+        logger.warn(`Session ${sessionId} has no embeddings and no page context — requesting context from client`);
+        socket.emit('context_required', { reason: 'session_expired' });
+        // Hold the current message — client will re-upload then the user can resend
+        socket.emit('chat_response', { chunk: '', done: true });
+        return;
+      }
+
       logger.debug(`[DEBUG] retriever.retrieveContext called`, {
         sessionId,
         hasEmbeddings: hasChunks,

@@ -42,6 +42,23 @@ async function transcribe(audioBuffer, mimeType = 'audio/webm') {
 }
 
 /**
+ * Clean markdown, HTML and format text for speech.
+ */
+function cleanTextForSpeech(text) {
+  if (!text) return '';
+  
+  // Remove markdown characters, links, and formatting
+  let cleaned = text
+    .replace(/[#*`~_]/g, '') // remove headers, bold, code, strikethrough, italic
+    .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1') // replace links with their text
+    .replace(/^\s*[-*+]\s+/gm, '') // remove bullet points
+    .replace(/\s+/g, ' ') // collapse multiple spaces/newlines
+    .trim();
+  
+  return cleaned;
+}
+
+/**
  * Synthesize text to audio.
  * @param {string} text   Text to convert to speech
  * @param {string} [languageCode]  BCP-47 language code, default 'en-US'
@@ -49,14 +66,20 @@ async function transcribe(audioBuffer, mimeType = 'audio/webm') {
  */
 async function synthesize(text, languageCode = 'en-US') {
   try {
-    logger.info('VoiceService: Synthesizing text to speech...', { textLength: text.length, languageCode });
+    const cleanedText = cleanTextForSpeech(text);
+    logger.info('VoiceService: Synthesizing text to speech...', { 
+      originalLength: text.length, 
+      textLength: cleanedText.length, 
+      languageCode, 
+      message: cleanedText 
+    });
 
     // Choose voice depending on language (optional, Aoede is generic and good)
     const voiceName = 'Aoede';
 
     const response = await ai.models.generateContent({
       model: config.geminiLiveModelTTS,
-      contents: `Read the following text out loud in ${languageCode === 'ar' ? 'Arabic' : 'English'}: "${text}"`,
+      contents: `Read the following text out loud in ${languageCode === 'ar' ? 'Arabic' : 'English'}: "${cleanedText.replace(/"/g, '\\"')}"`,
       config: {
         responseModalities: ['AUDIO'],
         speechConfig: {
