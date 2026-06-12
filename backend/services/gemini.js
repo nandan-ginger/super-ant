@@ -51,6 +51,36 @@ ${contextSection}
 User Question: ${question}`;
 }
 
+/**
+ * Build a voice-optimised prompt that instructs Gemini to keep the answer
+ * short and spoken-friendly (no markdown, ≤100 words) so TTS stays fast.
+ *
+ * @param {string} retrievedContext  Relevant page excerpts from RAG
+ * @param {string} question  The user's current question
+ * @returns {string}
+ */
+function buildVoicePrompt(retrievedContext, question) {
+  const contextSection = retrievedContext
+    ? `Context from the current page:\n\n${retrievedContext}`
+    : 'No specific page context is available for this question.';
+
+  return `You are a helpful voice assistant for this website. Answer the visitor's question using ONLY the provided page context.
+
+CRITICAL RULES for voice responses:
+- Keep your answer to 2-3 sentences maximum (under 80 words).
+- Cover all key points but be brief — this will be read aloud.
+- Do NOT use markdown, bullet points, asterisks, or numbered lists.
+- Write in natural spoken English, as if talking to someone.
+- If the answer is not in the context, say: "I cannot find that information on this page."
+- Do not hallucinate or use external knowledge.
+
+${contextSection}
+
+---
+
+User Question: ${question}`;
+}
+
 // ─── History Management ────────────────────────────────────────────────────────
 
 /**
@@ -162,4 +192,43 @@ async function streamResponse(sessionId, retrievedContext, question, onChunk) {
   }
 }
 
-module.exports = { sendMessage, streamResponse, buildPrompt, getHistory, clearHistory, appendHistory };
+/**
+ * Stream a voice-optimised response from Gemini (short, spoken-friendly).
+ * Uses buildVoicePrompt to enforce brevity for TTS.
+ *
+ * @param {string} sessionId
+ * @param {string} retrievedContext
+ * @param {string} question
+ * @param {(chunk: string) => void} onChunk  Called for each streamed text delta
+ * @returns {Promise<string>}  Full accumulated response
+ */
+async function streamResponseForVoice(sessionId, retrievedContext, question, onChunk) {
+  const model = genAI.getGenerativeModel({ model: config.geminiChatModel });
+  const history = getHistory(sessionId);
+
+  const chat = model.startChat({ history });
+  const prompt = buildVoicePrompt(retrievedContext, question);
+
+  let fullResponse = '';
+
+  try {
+    const result = await chat.sendMessageStream(prompt);
+
+    for await (const chunk of result.stream) {
+      const text = chunk.text();
+      if (text) {
+        fullResponse += text;
+        onChunk(text);
+      }
+    }
+
+    appendHistory(sessionId, question, fullResponse);
+    logger.debug(`Gemini voice stream complete for session ${sessionId}`, { totalLength: fullResponse.length });
+    return fullResponse;
+  } catch (err) {
+    logger.error('Gemini streamResponseForVoice failed', { sessionId, error: err.message });
+    throw err;
+  }
+}
+
+module.exports = { sendMessage, streamResponse, streamResponseForVoice, buildPrompt, buildVoicePrompt, getHistory, clearHistory, appendHistory };

@@ -18,11 +18,13 @@ const config = {
   geminiLiveModelTTS: process.env.GEMINI_TTS_MODEL || 'gemini-3.1-flash-tts-preview',
   // PostgreSQL
   pg: {
+    connectionString: process.env.DATABASE_URL || '',
     host: process.env.PG_HOST || 'localhost',
     port: parseInt(process.env.PG_PORT, 10) || 5432,
     database: process.env.PG_DATABASE || 'ginger_copilot',
     user: process.env.PG_USER || 'ginger',
     password: process.env.PG_PASSWORD || 'ginger_dev',
+    ssl: process.env.PG_SSL === 'true' || false,
   },
 
   // CORS

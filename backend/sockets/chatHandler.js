@@ -1,5 +1,6 @@
 'use strict';
 const logger = require('../utils/logger');
+const config = require('../config');
 const sessionManager = require('../services/sessionManager');
 const geminiService = require('../services/gemini');
 const voiceService = require('../services/voiceService');
@@ -207,10 +208,16 @@ function attachChatHandlers(socket) {
       logger.debug(`[DEBUG] retrieveContext returned`, { sessionId, strategy, contextLength: retrievedContext?.length || 0 });
 
       // ── Gemini streaming response ────────────────────────────────────────────
-      trackApiCall('streamResponse (Gemini Chat API)', { model: 'gemini-2.0-flash', reason: 'generate assistant reply' });
+      // For voice queries use the voice-optimised prompt (shorter, no markdown)
+      // so TTS stays fast and doesn't time out.
+      const streamFn = audio
+        ? geminiService.streamResponseForVoice
+        : geminiService.streamResponse;
+
+      trackApiCall('streamResponse (Gemini Chat API)', { model: config.geminiChatModel, reason: 'generate assistant reply', mode: audio ? 'voice' : 'text' });
       let fullResponse = '';
 
-      await geminiService.streamResponse(
+      await streamFn(
         sessionId,
         retrievedContext,
         userMessage,

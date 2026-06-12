@@ -1,0 +1,45 @@
+services:
+  - type: web
+    name: superant-backend
+    env: node
+    plan: free
+    rootDir: backend
+    buildCommand: npm install
+    startCommand: npm start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 10000
+      - key: DATABASE_URL
+        fromDatabase:
+          name: superant-db
+          property: connectionString
+      - key: PG_SSL
+        value: "true"
+      - key: GEMINI_API_KEY
+        sync: false # Prompt user to input during deployment
+      - key: GEMINI_CHAT_MODEL
+        value: gemini-2.5-flash
+      - key: GEMINI_EMBEDDING_MODEL
+        value: gemini-embedding-2
+      - key: GEMINI_TTS_MODEL
+        value: gemini-3.1-flash-tts-preview
+      - key: CORS_ORIGIN
+        value: "*"
+      - key: SESSION_TTL_MINUTES
+        value: "30"
+      - key: RAG_DIRECT_LIMIT
+        value: "5000"
+      - key: RAG_CHUNK_LIMIT
+        value: "50000"
+      - key: RAG_TOP_K
+        value: "5"
+      - key: LEADS_API_KEY
+        generateValue: true # Auto-generates a secure API key
+
+databases:
+  - name: superant-db
+    plan: free
+    databaseName: ginger_copilot
+    user: ginger

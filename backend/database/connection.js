@@ -7,12 +7,22 @@ const logger = require('../utils/logger');
  * PostgreSQL connection pool.
  * Single pool shared across the entire application.
  */
+const poolConfig = config.pg.connectionString
+  ? {
+      connectionString: config.pg.connectionString,
+      ssl: config.pg.ssl ? { rejectUnauthorized: false } : false,
+    }
+  : {
+      host: config.pg.host,
+      port: config.pg.port,
+      database: config.pg.database,
+      user: config.pg.user,
+      password: config.pg.password,
+      ssl: config.pg.ssl ? { rejectUnauthorized: false } : false,
+    };
+
 const pool = new Pool({
-  host: config.pg.host,
-  port: config.pg.port,
-  database: config.pg.database,
-  user: config.pg.user,
-  password: config.pg.password,
+  ...poolConfig,
   max: 10,
   idleTimeoutMillis: 30000,
   connectionTimeoutMillis: 5000,

@@ -103,7 +103,10 @@ async function start() {
   const dbReady = await testConnection();
   if (!dbReady) {
     logger.error('Cannot connect to PostgreSQL. Please ensure the database is running.');
-    logger.error(`Connection: ${config.pg.user}@${config.pg.host}:${config.pg.port}/${config.pg.database}`);
+    const connInfo = config.pg.connectionString
+      ? 'Connection String (masked)'
+      : `${config.pg.user}@${config.pg.host}:${config.pg.port}/${config.pg.database}`;
+    logger.error(`Connection: ${connInfo}`);
     process.exit(1);
   }
 

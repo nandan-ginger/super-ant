@@ -509,7 +509,7 @@
       widgetcode: "demo_widget_001",
       pageURL: currentURL,
       domain: domain,
-      livechatURL: "http://localhost:3001",   // ← your backend URL
+      livechatURL: "https://cw20r4rm-3001.inc1.devtunnels.ms",   // ← your backend URL
       values: {},
       ready: function () {
         console.log('[Ginger] Widget ready');
@@ -521,7 +521,7 @@
     s.type = "text/javascript";
     s.id = "gingerlivechatscript";
     s.defer = true;
-    s.src = "http://localhost:3001/livechat/index.js";   // ← served by backend
+    s.src = "https://cw20r4rm-3001.inc1.devtunnels.ms/livechat/index.js";   // ← served by backend
 
     var t = d.getElementsByTagName("script")[0];
     t.parentNode.insertBefore(s, t);

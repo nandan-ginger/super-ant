@@ -13,7 +13,7 @@
 
   // ─── Config ─────────────────────────────────────────────────────────────────
   const cfg = (window.ginger_chat && window.ginger_chat.salesiq) || {};
-  const BACKEND_URL = cfg.livechatURL || 'http://localhost:3001';
+  const BACKEND_URL = cfg.livechatURL;
   const WIDGET_CODE = cfg.widgetcode || 'demo';
 
   // Unique session ID persisted for this browser tab
@@ -889,10 +889,23 @@
       if (activeAudioSource && typeof activeAudioSource.pause === 'function') {
         try { activeAudioSource.pause(); } catch (_) { }
       }
-      audio.play();
-      playBtn.innerHTML = ICON_PAUSE;
-      isPlayState = true;
-      activeAudioSource = audio;
+      const playPromise = audio.play();
+      if (playPromise !== undefined) {
+        playPromise.then(() => {
+          playBtn.innerHTML = ICON_PAUSE;
+          isPlayState = true;
+          activeAudioSource = audio;
+        }).catch(() => {
+          // Autoplay blocked by browser policy (e.g. on first visit on another device)
+          // Reset to show Play button so user can tap it manually
+          playBtn.innerHTML = ICON_PLAY;
+          isPlayState = false;
+        });
+      } else {
+        playBtn.innerHTML = ICON_PAUSE;
+        isPlayState = true;
+        activeAudioSource = audio;
+      }
     };
 
     playBtn.addEventListener('click', () => {
@@ -1233,13 +1246,18 @@
       if (currentQueryIsVoice) {
         removeTyping();
         isTyping = false;
+        pendingMessage = null;
+        els.sendBtn.disabled = false;
+        els.input.disabled = false;
+        els.input.focus();
       }
       if (data.audio) {
         if (currentQueryIsVoice) {
           const audioUrl = pcmToWav(data.audio);
           if (audioUrl) {
-            // Append bot voice message bubble and trigger autoplay
-            // Pass currentVoiceResponseText to allow optional transcription showing if uncommented in appendAudioMessage
+            // Append bot voice message bubble and try autoplay.
+            // If browser blocks autoplay (e.g. on another device / first visit),
+            // the player will appear with a Play button for manual tap.
             const audioMsg = appendAudioMessage(els, 'bot', audioUrl, currentVoiceResponseText);
             audioMsg.play();
             // Clear voice text response
@@ -1256,7 +1274,10 @@
       if (currentQueryIsVoice) {
         removeTyping();
         isTyping = false;
+        pendingMessage = null;
         appendMessage(els, 'bot', 'The bot is under issue, please come back later.');
+        els.sendBtn.disabled = false;
+        els.input.disabled = false;
       }
     });
 
@@ -1266,13 +1287,9 @@
         // Suppress text rendering for bot's voice replies
         if (!data.done) {
           currentVoiceResponseText = (currentVoiceResponseText || '') + data.chunk;
-        } else {
-          // Stream complete
-          pendingMessage = null; // Message was processed successfully
-          els.sendBtn.disabled = false;
-          els.input.disabled = false;
-          els.input.focus();
         }
+        // Do NOT re-enable input here for voice — wait for voice_response (or voice_response_failed)
+        // to arrive so the user can't send while TTS is still generating
         return;
       }
 
