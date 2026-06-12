@@ -231,7 +231,7 @@ function attachChatHandlers(socket) {
           socket.emit('voice_response', { audio: base64Audio });
         } catch (synthErr) {
           logger.error('Failed to synthesize response speech', { sessionId, error: synthErr.message });
-          // Fall back gracefully - text response is already streamed
+          socket.emit('voice_response_failed', { error: synthErr.message });
         }
       }
 
@@ -250,10 +250,7 @@ function attachChatHandlers(socket) {
       });
     } catch (err) {
       logger.error('chat_message handler error', { sessionId, error: err.message, stack: err.stack });
-      socket.emit('chat_response', {
-        chunk: 'Sorry, I encountered an error processing your request. Please try again.',
-        done: true,
-      });
+      socket.emit('error', { message: 'The bot is under issue, please come back later.' });
     }
   });
 

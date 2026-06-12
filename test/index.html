@@ -1,65 +1,326 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Acme SaaS — Project Management Software</title>
-  <meta name="description" content="Acme SaaS helps teams manage projects, track bugs, and collaborate in real time. Starting at $12/user/month." />
+  <title>Acme SaaS Project Management Software</title>
+  <meta name="description"
+    content="Acme SaaS helps teams manage projects, track bugs, and collaborate in real time. Starting at $12/user/month." />
   <style>
-    * { box-sizing: border-box; margin: 0; padding: 0; }
-    body { font-family: 'Segoe UI', system-ui, sans-serif; background: #f8fafc; color: #1e293b; }
-    nav { background: #1e40af; color: white; padding: 16px 40px; display: flex; align-items: center; justify-content: space-between; }
-    nav .logo { font-size: 22px; font-weight: 700; }
-    nav ul { display: flex; gap: 24px; list-style: none; }
-    nav ul a { color: rgba(255,255,255,0.85); text-decoration: none; font-size: 14px; }
-    .hero { background: linear-gradient(135deg, #1e40af, #7c3aed); color: white; padding: 80px 40px; text-align: center; }
-    .hero h1 { font-size: 48px; font-weight: 800; margin-bottom: 16px; }
-    .hero p { font-size: 20px; opacity: 0.85; max-width: 560px; margin: 0 auto 32px; }
-    .hero .cta { background: white; color: #1e40af; padding: 14px 32px; border-radius: 8px; font-weight: 700; font-size: 16px; text-decoration: none; display: inline-block; }
-    .features { padding: 64px 40px; max-width: 1100px; margin: 0 auto; }
-    .features h2 { font-size: 32px; font-weight: 700; margin-bottom: 40px; text-align: center; }
-    .feature-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 24px; }
-    .feature-card { background: white; border-radius: 12px; padding: 24px; box-shadow: 0 1px 3px rgba(0,0,0,0.08); }
-    .feature-card .icon { font-size: 32px; margin-bottom: 12px; }
-    .feature-card h3 { font-size: 18px; font-weight: 700; margin-bottom: 8px; }
-    .feature-card p { color: #64748b; font-size: 14px; line-height: 1.6; }
-    .pricing { background: #f1f5f9; padding: 64px 40px; }
-    .pricing h2 { font-size: 32px; font-weight: 700; text-align: center; margin-bottom: 8px; }
-    .pricing .subtitle { text-align: center; color: #64748b; margin-bottom: 40px; }
-    .pricing-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 24px; max-width: 900px; margin: 0 auto; }
-    .plan { background: white; border-radius: 12px; padding: 28px; box-shadow: 0 1px 3px rgba(0,0,0,0.08); }
-    .plan.popular { border: 2px solid #1e40af; }
-    .plan .badge { background: #1e40af; color: white; font-size: 11px; font-weight: 700; padding: 3px 10px; border-radius: 20px; display: inline-block; margin-bottom: 12px; }
-    .plan h3 { font-size: 20px; font-weight: 700; margin-bottom: 4px; }
-    .plan .price { font-size: 36px; font-weight: 800; color: #1e40af; }
-    .plan .price span { font-size: 14px; font-weight: 400; color: #64748b; }
-    .plan ul { list-style: none; margin: 16px 0; }
-    .plan ul li { padding: 5px 0; font-size: 14px; color: #475569; }
-    .plan ul li::before { content: "✓ "; color: #22c55e; font-weight: 700; }
-    .plan .btn { width: 100%; padding: 10px; border: 2px solid #1e40af; border-radius: 8px; background: transparent; color: #1e40af; font-weight: 700; cursor: pointer; margin-top: 8px; }
-    .plan.popular .btn { background: #1e40af; color: white; }
-    .comparison { padding: 64px 40px; max-width: 900px; margin: 0 auto; }
-    .comparison h2 { font-size: 32px; font-weight: 700; text-align: center; margin-bottom: 32px; }
-    table { width: 100%; border-collapse: collapse; background: white; border-radius: 12px; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,0.08); }
-    th { background: #1e40af; color: white; padding: 14px 20px; text-align: left; font-size: 14px; }
-    td { padding: 12px 20px; border-bottom: 1px solid #f1f5f9; font-size: 14px; }
-    tr:last-child td { border-bottom: none; }
-    tr:nth-child(even) td { background: #f8fafc; }
-    .contact { padding: 64px 40px; background: #1e293b; color: white; text-align: center; }
-    .contact h2 { font-size: 32px; font-weight: 700; margin-bottom: 8px; }
-    .contact p { color: #94a3b8; margin-bottom: 24px; }
-    .contact-form { max-width: 480px; margin: 0 auto; }
-    .contact-form input, .contact-form textarea {
-      width: 100%; padding: 12px; margin-bottom: 12px; border-radius: 8px;
-      border: 1px solid #334155; background: #0f172a; color: white; font-size: 14px;
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
     }
+
+    body {
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      background: #f8fafc;
+      color: #1e293b;
+    }
+
+    nav {
+      background: #1e40af;
+      color: white;
+      padding: 16px 40px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    nav .logo {
+      font-size: 22px;
+      font-weight: 700;
+    }
+
+    nav ul {
+      display: flex;
+      gap: 24px;
+      list-style: none;
+    }
+
+    nav ul a {
+      color: rgba(255, 255, 255, 0.85);
+      text-decoration: none;
+      font-size: 14px;
+    }
+
+    .hero {
+      background: linear-gradient(135deg, #1e40af, #7c3aed);
+      color: white;
+      padding: 80px 40px;
+      text-align: center;
+    }
+
+    .hero h1 {
+      font-size: 48px;
+      font-weight: 800;
+      margin-bottom: 16px;
+    }
+
+    .hero p {
+      font-size: 20px;
+      opacity: 0.85;
+      max-width: 560px;
+      margin: 0 auto 32px;
+    }
+
+    .hero .cta {
+      background: white;
+      color: #1e40af;
+      padding: 14px 32px;
+      border-radius: 8px;
+      font-weight: 700;
+      font-size: 16px;
+      text-decoration: none;
+      display: inline-block;
+    }
+
+    .features {
+      padding: 64px 40px;
+      max-width: 1100px;
+      margin: 0 auto;
+    }
+
+    .features h2 {
+      font-size: 32px;
+      font-weight: 700;
+      margin-bottom: 40px;
+      text-align: center;
+    }
+
+    .feature-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 24px;
+    }
+
+    .feature-card {
+      background: white;
+      border-radius: 12px;
+      padding: 24px;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+    }
+
+    .feature-card .icon {
+      font-size: 32px;
+      margin-bottom: 12px;
+    }
+
+    .feature-card h3 {
+      font-size: 18px;
+      font-weight: 700;
+      margin-bottom: 8px;
+    }
+
+    .feature-card p {
+      color: #64748b;
+      font-size: 14px;
+      line-height: 1.6;
+    }
+
+    .pricing {
+      background: #f1f5f9;
+      padding: 64px 40px;
+    }
+
+    .pricing h2 {
+      font-size: 32px;
+      font-weight: 700;
+      text-align: center;
+      margin-bottom: 8px;
+    }
+
+    .pricing .subtitle {
+      text-align: center;
+      color: #64748b;
+      margin-bottom: 40px;
+    }
+
+    .pricing-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 24px;
+      max-width: 900px;
+      margin: 0 auto;
+    }
+
+    .plan {
+      background: white;
+      border-radius: 12px;
+      padding: 28px;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+    }
+
+    .plan.popular {
+      border: 2px solid #1e40af;
+    }
+
+    .plan .badge {
+      background: #1e40af;
+      color: white;
+      font-size: 11px;
+      font-weight: 700;
+      padding: 3px 10px;
+      border-radius: 20px;
+      display: inline-block;
+      margin-bottom: 12px;
+    }
+
+    .plan h3 {
+      font-size: 20px;
+      font-weight: 700;
+      margin-bottom: 4px;
+    }
+
+    .plan .price {
+      font-size: 36px;
+      font-weight: 800;
+      color: #1e40af;
+    }
+
+    .plan .price span {
+      font-size: 14px;
+      font-weight: 400;
+      color: #64748b;
+    }
+
+    .plan ul {
+      list-style: none;
+      margin: 16px 0;
+    }
+
+    .plan ul li {
+      padding: 5px 0;
+      font-size: 14px;
+      color: #475569;
+    }
+
+    .plan ul li::before {
+      content: "✓ ";
+      color: #22c55e;
+      font-weight: 700;
+    }
+
+    .plan .btn {
+      width: 100%;
+      padding: 10px;
+      border: 2px solid #1e40af;
+      border-radius: 8px;
+      background: transparent;
+      color: #1e40af;
+      font-weight: 700;
+      cursor: pointer;
+      margin-top: 8px;
+    }
+
+    .plan.popular .btn {
+      background: #1e40af;
+      color: white;
+    }
+
+    .comparison {
+      padding: 64px 40px;
+      max-width: 900px;
+      margin: 0 auto;
+    }
+
+    .comparison h2 {
+      font-size: 32px;
+      font-weight: 700;
+      text-align: center;
+      margin-bottom: 32px;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      background: white;
+      border-radius: 12px;
+      overflow: hidden;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+    }
+
+    th {
+      background: #1e40af;
+      color: white;
+      padding: 14px 20px;
+      text-align: left;
+      font-size: 14px;
+    }
+
+    td {
+      padding: 12px 20px;
+      border-bottom: 1px solid #f1f5f9;
+      font-size: 14px;
+    }
+
+    tr:last-child td {
+      border-bottom: none;
+    }
+
+    tr:nth-child(even) td {
+      background: #f8fafc;
+    }
+
+    .contact {
+      padding: 64px 40px;
+      background: #1e293b;
+      color: white;
+      text-align: center;
+    }
+
+    .contact h2 {
+      font-size: 32px;
+      font-weight: 700;
+      margin-bottom: 8px;
+    }
+
+    .contact p {
+      color: #94a3b8;
+      margin-bottom: 24px;
+    }
+
+    .contact-form {
+      max-width: 480px;
+      margin: 0 auto;
+    }
+
+    .contact-form input,
+    .contact-form textarea {
+      width: 100%;
+      padding: 12px;
+      margin-bottom: 12px;
+      border-radius: 8px;
+      border: 1px solid #334155;
+      background: #0f172a;
+      color: white;
+      font-size: 14px;
+    }
+
     .contact-form button {
-      width: 100%; padding: 12px; background: #1e40af; color: white;
-      border: none; border-radius: 8px; font-size: 16px; font-weight: 700; cursor: pointer;
+      width: 100%;
+      padding: 12px;
+      background: #1e40af;
+      color: white;
+      border: none;
+      border-radius: 8px;
+      font-size: 16px;
+      font-weight: 700;
+      cursor: pointer;
     }
-    footer { background: #0f172a; color: #64748b; text-align: center; padding: 20px; font-size: 13px; }
+
+    footer {
+      background: #0f172a;
+      color: #64748b;
+      text-align: center;
+      padding: 20px;
+      font-size: 13px;
+    }
   </style>
 </head>
+
 <body>
 
   <!-- Navigation -->
@@ -75,7 +336,7 @@
 
   <!-- Hero -->
   <section class="hero">
-    <h1>Project Management<br/>Built for Modern Teams</h1>
+    <h1>Project Management<br />Built for Modern Teams</h1>
     <p>Streamline your workflow, ship faster, and collaborate without chaos.</p>
     <a href="#pricing" class="cta">Start Free Trial →</a>
   </section>
@@ -178,12 +439,42 @@
         </tr>
       </thead>
       <tbody>
-        <tr><td>Starting price</td><td>$12/user/mo</td><td>$13.49/user/mo</td><td>$8.15/user/mo</td></tr>
-        <tr><td>Free plan</td><td>✓ 14-day trial</td><td>✓ Limited</td><td>✓ 10 users</td></tr>
-        <tr><td>Kanban boards</td><td>✓ Advanced</td><td>✓ Basic</td><td>✓ Advanced</td></tr>
-        <tr><td>AI features</td><td>✓ Built-in</td><td>✗</td><td>Partial</td></tr>
-        <tr><td>Setup time</td><td>&lt; 5 minutes</td><td>~30 minutes</td><td>~2 hours</td></tr>
-        <tr><td>Customer support</td><td>24/7 Live Chat</td><td>Business hours</td><td>Community</td></tr>
+        <tr>
+          <td>Starting price</td>
+          <td>$12/user/mo</td>
+          <td>$13.49/user/mo</td>
+          <td>$8.15/user/mo</td>
+        </tr>
+        <tr>
+          <td>Free plan</td>
+          <td>✓ 14-day trial</td>
+          <td>✓ Limited</td>
+          <td>✓ 10 users</td>
+        </tr>
+        <tr>
+          <td>Kanban boards</td>
+          <td>✓ Advanced</td>
+          <td>✓ Basic</td>
+          <td>✓ Advanced</td>
+        </tr>
+        <tr>
+          <td>AI features</td>
+          <td>✓ Built-in</td>
+          <td>✗</td>
+          <td>Partial</td>
+        </tr>
+        <tr>
+          <td>Setup time</td>
+          <td>&lt; 5 minutes</td>
+          <td>~30 minutes</td>
+          <td>~2 hours</td>
+        </tr>
+        <tr>
+          <td>Customer support</td>
+          <td>24/7 Live Chat</td>
+          <td>Business hours</td>
+          <td>Community</td>
+        </tr>
       </tbody>
     </table>
   </section>
@@ -201,7 +492,8 @@
   </section>
 
   <footer>
-    © 2026 AcmeSaaS Inc. All rights reserved. | <a href="#" style="color:#6366f1">Privacy Policy</a> | <a href="#" style="color:#6366f1">Terms of Service</a>
+    © 2026 AcmeSaaS Inc. All rights reserved. | <a href="#" style="color:#6366f1">Privacy Policy</a> | <a href="#"
+      style="color:#6366f1">Terms of Service</a>
   </footer>
 
   <!-- =====================================================
@@ -236,4 +528,5 @@
   </script>
 
 </body>
+
 </html>

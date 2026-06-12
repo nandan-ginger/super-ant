@@ -131,13 +131,12 @@
       50% { transform: scale(1.2); opacity: 0.8; }
     }
 
-    /* ── Chat Panel ── */
     .gc-panel {
       position: fixed;
       bottom: 100px;
       right: 24px;
       width: 380px;
-      max-height: 600px;
+      max-height: min(600px, calc(100vh - 120px));
       background: #0F0F1A;
       border-radius: 20px;
       box-shadow: 0 24px 80px rgba(0,0,0,0.6), 0 0 0 1px rgba(255,255,255,0.06);
@@ -361,7 +360,12 @@
 
     /* ── Responsive ── */
     @media (max-width: 430px) {
-      .gc-panel { width: calc(100vw - 16px); right: 8px; bottom: 88px; }
+      .gc-panel { 
+        width: calc(100vw - 16px); 
+        right: 8px; 
+        bottom: 88px; 
+        max-height: calc(100vh - 108px); 
+      }
       .gc-launcher { right: 16px; bottom: 16px; }
     }
 
@@ -1146,7 +1150,7 @@
     });
 
     socket.on('connect', () => {
-      els.statusText.textContent = 'Connected · AI ready';
+      els.statusText.textContent = 'Ready';
       els.sendBtn.disabled = false;
 
       // Send page context immediately on connect
@@ -1156,17 +1160,25 @@
     socket.on('disconnect', () => {
       els.statusText.textContent = 'Reconnecting…';
       els.sendBtn.disabled = true;
+      if (isTyping) {
+        removeTyping();
+        appendMessage(els, 'bot', 'The bot is under issue, please come back later.');
+        isTyping = false;
+      }
     });
 
     socket.on('connect_error', () => {
-      els.statusText.textContent = 'Connection failed';
+      els.statusText.textContent = 'Connection failed. Please refresh.';
+      if (isTyping) {
+        removeTyping();
+        appendMessage(els, 'bot', 'The bot is under issue, please come back later.');
+        isTyping = false;
+      }
     });
 
     socket.on('context_indexed', (data) => {
       contextIndexed = true;
-      els.statusText.textContent = `Ready · ${data.strategy === 'direct' ? 'Full context' : data.chunkCount + ' chunks'}${
-        data.restoredFromCache ? ' (cached)' : ''
-      }`;
+      els.statusText.textContent = 'Ready';
       // Cache the embedded chunks client-side so reloads and expired sessions can restore fast
       if (data.embeddedChunks && data.embeddedChunks.length > 0) {
         const cachedCtx = loadEmbeddingCache()?.pageContext;
@@ -1195,7 +1207,7 @@
           pageContext: cache.pageContext,
           embeddedChunks: cache.embeddedChunks,
         });
-        els.statusText.textContent = 'Restoring context...';
+        els.statusText.textContent = 'Preparing...';
         // Show a helpful status indicator that message will retry
         if (pendingMessage) {
           showTyping(els);
@@ -1218,6 +1230,10 @@
 
     // Voice response event (contains base64 encoded raw PCM audio response)
     socket.on('voice_response', (data) => {
+      if (currentQueryIsVoice) {
+        removeTyping();
+        isTyping = false;
+      }
       if (data.audio) {
         if (currentQueryIsVoice) {
           const audioUrl = pcmToWav(data.audio);
@@ -1235,6 +1251,15 @@
       }
     });
 
+    // Voice synthesis failed
+    socket.on('voice_response_failed', (data) => {
+      if (currentQueryIsVoice) {
+        removeTyping();
+        isTyping = false;
+        appendMessage(els, 'bot', 'The bot is under issue, please come back later.');
+      }
+    });
+
     // Streaming response handler
     socket.on('chat_response', (data) => {
       if (currentQueryIsVoice) {
@@ -1243,8 +1268,6 @@
           currentVoiceResponseText = (currentVoiceResponseText || '') + data.chunk;
         } else {
           // Stream complete
-          removeTyping();
-          isTyping = false;
           pendingMessage = null; // Message was processed successfully
           els.sendBtn.disabled = false;
           els.input.disabled = false;
@@ -1286,7 +1309,7 @@
 
     socket.on('error', (data) => {
       removeTyping();
-      appendMessage(els, 'bot', data.message || 'Something went wrong. Please try again.');
+      appendMessage(els, 'bot', 'The bot is under issue, please come back later.');
       isTyping = false;
       els.sendBtn.disabled = false;
       els.input.disabled = false;
@@ -1476,7 +1499,7 @@
         pageContext: cache.pageContext,
         embeddedChunks: cache.embeddedChunks,
       });
-      els.statusText.textContent = 'Restoring context...';
+      els.statusText.textContent = 'Preparing...';
       return;
     }
 
@@ -1488,7 +1511,7 @@
         // Save raw page context now; embeddings will be saved when context_indexed fires
         saveEmbeddingCache([], pageContext);
         socket.emit('context_update', { pageContext });
-        els.statusText.textContent = 'Analysing page…';
+        els.statusText.textContent = 'Preparing...';
       } catch (err) {
         console.error('[Ginger] Context extraction failed', err);
       }
@@ -1580,7 +1603,7 @@
     appendMessage(
       els,
       'bot',
-      `👋 Hi! I'm your AI assistant for "${pageTitle}". Ask me anything — I'll answer using the content on this page.`
+      `👋 Hi! I'm your AI assistant for "${pageTitle}". Ask me anything, I'll answer using the content on this page.`
     );
   }
 
