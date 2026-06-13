@@ -40,9 +40,9 @@ app.use('/livechat', express.static(widgetDir, {
 }));
 
 // ─── Routes ───────────────────────────────────────────────────────────────────
-app.use('/health',     require('./routes/health'));
-app.use('/api/chat',   require('./routes/chat'));
-app.use('/api/leads',  require('./routes/leads'));
+app.use('/health', require('./routes/health'));
+app.use('/api/chat', require('./routes/chat'));
+app.use('/api/leads', require('./routes/leads'));
 
 // Catch-all 404
 app.use((req, res) => {
@@ -137,7 +137,7 @@ async function shutdown(signal) {
 }
 
 process.on('SIGTERM', () => shutdown('SIGTERM'));
-process.on('SIGINT',  () => shutdown('SIGINT'));
+process.on('SIGINT', () => shutdown('SIGINT'));
 process.on('uncaughtException', (err) => {
   logger.error('Uncaught exception', { error: err.message, stack: err.stack });
   process.exit(1);
