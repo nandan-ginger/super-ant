@@ -39,6 +39,13 @@ app.use('/livechat', express.static(widgetDir, {
   },
 }));
 
+// Serve the test client page (useful for testing & deployment demo)
+const testDir = path.join(__dirname, '..', 'test');
+app.use('/test', express.static(testDir));
+app.get('/', (req, res) => {
+  res.sendFile(path.join(testDir, 'index.html'));
+});
+
 // ─── Routes ───────────────────────────────────────────────────────────────────
 app.use('/health', require('./routes/health'));
 app.use('/api/chat', require('./routes/chat'));

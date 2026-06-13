@@ -498,18 +498,22 @@
 
   <!-- =====================================================
        Ginger LiveChat AI Copilot Widget
-       Change livechatURL to your backend URL
        ===================================================== -->
   <script type="text/javascript" id="gingerlivechat">
     var ginger_chat = ginger_chat || {};
     var currentURL = window.location.href;
     var domain = window.location.protocol + "//" + window.location.hostname + (window.location.port ? ":" + window.location.port : "");
 
+    // Use current domain if running on localhost or on the deployed server, otherwise fallback to production Render URL
+    var backendURL = (domain.indexOf('localhost') !== -1 || domain.indexOf('superant-backend') !== -1)
+      ? domain
+      : "https://superant-backend.onrender.com";
+
     ginger_chat.salesiq = ginger_chat.salesiq || {
       widgetcode: "demo_widget_001",
       pageURL: currentURL,
       domain: domain,
-      livechatURL: "https://superant-backend.onrender.com",   // ← your backend URL
+      livechatURL: backendURL,
       values: {},
       ready: function () {
         console.log('[Ginger] Widget ready');
@@ -521,7 +525,7 @@
     s.type = "text/javascript";
     s.id = "gingerlivechatscript";
     s.defer = true;
-    s.src = "https://superant-backend.onrender.com/livechat/index.js";   // ← served by backend
+    s.src = backendURL + "/livechat/index.js";
 
     var t = d.getElementsByTagName("script")[0];
     t.parentNode.insertBefore(s, t);
