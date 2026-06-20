@@ -11,6 +11,7 @@ const logger = require('./utils/logger');
 const { testConnection, closePool } = require('./database/connection');
 const { query } = require('./database/connection');
 const { attachChatHandlers } = require('./sockets/chatHandler');
+const { seedSuperAdmin } = require('./database/queries/adminUsers');
 
 // ─── Express App Setup ────────────────────────────────────────────────────────
 const app = express();
@@ -47,9 +48,13 @@ app.get('/', (req, res) => {
 });
 
 // ─── Routes ───────────────────────────────────────────────────────────────────
-app.use('/health', require('./routes/health'));
-app.use('/api/chat', require('./routes/chat'));
-app.use('/api/leads', require('./routes/leads'));
+app.use('/health',         require('./routes/health'));
+app.use('/api/auth',       require('./routes/auth'));
+app.use('/api/widgets',    require('./routes/widgets'));
+app.use('/api/livechats',  require('./routes/livechats'));
+app.use('/api/visitors',   require('./routes/visitors'));
+app.use('/api/leads',      require('./routes/leads'));
+app.use('/api/chat',       require('./routes/chat'));
 
 // Catch-all 404
 app.use((req, res) => {
@@ -81,18 +86,23 @@ io.on('connection', (socket) => {
 
 // ─── Database Migration ───────────────────────────────────────────────────────
 async function runMigrations() {
-  const migrationPath = path.join(__dirname, 'database', 'migrations', '001_init.sql');
-  try {
-    const sql = fs.readFileSync(migrationPath, 'utf8');
-    await query(sql);
-    logger.info('Database migrations applied successfully');
-  } catch (err) {
-    // Ignore "already exists" errors (idempotent migrations)
-    if (err.message.includes('already exists')) {
-      logger.debug('Migration: tables already exist, skipping');
-    } else {
-      logger.error('Migration failed', { error: err.message });
-      throw err;
+  const migrations = [
+    path.join(__dirname, 'database', 'migrations', '001_init.sql'),
+    path.join(__dirname, 'database', 'migrations', '002_widgets.sql'),
+  ];
+
+  for (const migrationPath of migrations) {
+    try {
+      const sql = fs.readFileSync(migrationPath, 'utf8');
+      await query(sql);
+      logger.info(`Migration applied: ${path.basename(migrationPath)}`);
+    } catch (err) {
+      if (err.message.includes('already exists')) {
+        logger.debug(`Migration: ${path.basename(migrationPath)} — tables already exist, skipping`);
+      } else {
+        logger.error(`Migration failed: ${path.basename(migrationPath)}`, { error: err.message });
+        throw err;
+      }
     }
   }
 }
@@ -119,6 +129,17 @@ async function start() {
 
   // Run DB migrations
   await runMigrations();
+
+  // Seed superadmin (only if no superadmin exists yet)
+  try {
+    const seeded = await seedSuperAdmin(config.superAdmin);
+    if (seeded) {
+      logger.info(`SuperAdmin seeded: ${seeded.username} (${seeded.email})`);
+      logger.warn('IMPORTANT: Change the SUPER_ADMIN_PASSWORD in .env before going to production!');
+    }
+  } catch (err) {
+    logger.error('SuperAdmin seed failed', { error: err.message });
+  }
 
   // Start listening
   server.listen(config.port, () => {

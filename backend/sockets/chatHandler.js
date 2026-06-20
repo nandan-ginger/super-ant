@@ -9,6 +9,46 @@ const retriever = require('../rag/retriever');
 const { upsertSession, touchSession: dbTouchSession } = require('../database/queries/sessions');
 const { saveMessage } = require('../database/queries/messages');
 const { saveLead } = require('../database/queries/leads');
+const { widgetExists } = require('../database/queries/widgets');
+
+// ─── Widget Code Validation Cache ────────────────────────────────────────────
+// Cache valid widget codes in memory to avoid a DB hit on every socket connect.
+// TTL: 5 minutes. Entries are simple { validatedAt: timestamp } objects.
+const WIDGET_CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
+const validWidgetCache = new Map(); // widgetCode -> { validatedAt }
+
+/**
+ * Check if a widget code is valid, using an in-memory cache.
+ * Returns true if valid (in cache and not expired, or confirmed from DB).
+ * Returns false for unknown / invalid codes.
+ * Special: 'demo_widget_001' and 'rest-client' are always allowed (legacy).
+ */
+async function isValidWidgetCode(widgetCode) {
+  // Allow legacy/test codes without a DB lookup
+  if (widgetCode === 'demo_widget_001' || widgetCode === 'rest-client' || widgetCode === 'unknown') {
+    return true;
+  }
+
+  const cached = validWidgetCache.get(widgetCode);
+  if (cached && (Date.now() - cached.validatedAt) < WIDGET_CACHE_TTL_MS) {
+    return true; // still fresh
+  }
+
+  // Hit the DB
+  try {
+    const exists = await widgetExists(widgetCode);
+    if (exists) {
+      validWidgetCache.set(widgetCode, { validatedAt: Date.now() });
+    } else {
+      validWidgetCache.delete(widgetCode); // remove stale entry if it was cached before
+    }
+    return exists;
+  } catch (err) {
+    logger.error('Widget validation DB error', { widgetCode, error: err.message });
+    // Fail open on DB errors to avoid disrupting existing sessions
+    return true;
+  }
+}
 
 
 /**
@@ -34,8 +74,27 @@ function attachChatHandlers(socket) {
 
   logger.info(`Socket connected: ${socket.id}`, { sessionId, widgetCode });
 
-  // Create an in-memory session immediately
-  sessionManager.createOrRefreshSession(sessionId, { widgetCode });
+  // ─── Widget Code Validation ─────────────────────────────────────────────────
+  // Validate at connect time only (not per-message) to keep performance high.
+  // Unregistered widget codes are disconnected immediately.
+  isValidWidgetCode(widgetCode).then(valid => {
+    if (!valid) {
+      logger.warn(`Socket rejected: unknown widgetCode "${widgetCode}"`, { sessionId, ip: socket.handshake.address });
+      socket.emit('error', { message: 'Unregistered widget. Please check your widget code.' });
+      socket.disconnect(true);
+      return;
+    }
+    // Create an in-memory session immediately
+    sessionManager.createOrRefreshSession(sessionId, { widgetCode });
+  }).catch(() => {
+    // On unexpected error, allow connection but log it
+    sessionManager.createOrRefreshSession(sessionId, { widgetCode });
+  });
+
+  // Also create session immediately for known/cached codes (avoids delay)
+  if (validWidgetCache.has(widgetCode) || widgetCode === 'demo_widget_001' || widgetCode === 'rest-client') {
+    sessionManager.createOrRefreshSession(sessionId, { widgetCode });
+  }
 
   // ─── context_update ─────────────────────────────────────────────────────────
   socket.on('context_update', async (data) => {

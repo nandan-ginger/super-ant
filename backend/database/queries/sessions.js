@@ -42,16 +42,88 @@ async function getSession(sessionId) {
 }
 
 /**
- * List sessions for a widget code, newest first.
+ * List sessions for a widget code with pagination, message count, and lead name if available.
+ * Used for both live chats and visitors views.
  * @param {string} widgetCode
- * @param {number} [limit=50]
+ * @param {object} [options]
+ * @param {number} [options.limit=50]
+ * @param {number} [options.offset=0]
  */
-async function listSessionsByWidget(widgetCode, limit = 50) {
-  const { rows } = await query(
-    `SELECT * FROM sessions WHERE widget_code = $1 ORDER BY started_at DESC LIMIT $2`,
-    [widgetCode, limit]
-  );
+async function listSessionsByWidget(widgetCode, { limit = 50, offset = 0 } = {}) {
+  const sql = `
+    SELECT
+      s.id,
+      s.widget_code,
+      s.page_url,
+      s.page_title,
+      s.started_at,
+      s.last_active,
+      COUNT(DISTINCT m.id)::int        AS message_count,
+      l.name                           AS visitor_name,
+      l.email                          AS visitor_email,
+      l.phone                          AS visitor_phone,
+      l.id                             AS lead_id
+    FROM sessions s
+    LEFT JOIN messages m ON m.session_id = s.id
+    LEFT JOIN leads l    ON l.session_id = s.id
+    WHERE s.widget_code = $1
+    GROUP BY s.id, l.name, l.email, l.phone, l.id
+    ORDER BY s.started_at DESC
+    LIMIT $2 OFFSET $3
+  `;
+  const { rows } = await query(sql, [widgetCode, limit, offset]);
   return rows;
 }
 
-module.exports = { upsertSession, touchSession, getSession, listSessionsByWidget };
+/**
+ * Count total sessions for a widget.
+ * @param {string} widgetCode
+ */
+async function countSessionsByWidget(widgetCode) {
+  const { rows } = await query(
+    `SELECT COUNT(*) AS total FROM sessions WHERE widget_code = $1`,
+    [widgetCode]
+  );
+  return parseInt(rows[0].total, 10);
+}
+
+/**
+ * Get a single session enriched with lead info (for visitor detail page).
+ * @param {string} sessionId
+ */
+async function getSessionWithLeadInfo(sessionId) {
+  const sql = `
+    SELECT
+      s.id,
+      s.widget_code,
+      s.page_url,
+      s.page_title,
+      s.started_at,
+      s.last_active,
+      COUNT(DISTINCT m.id)::int  AS message_count,
+      l.id                       AS lead_id,
+      l.name                     AS visitor_name,
+      l.email                    AS visitor_email,
+      l.phone                    AS visitor_phone,
+      l.requirement              AS visitor_requirement,
+      l.intent                   AS visitor_intent,
+      l.captured_at              AS lead_captured_at
+    FROM sessions s
+    LEFT JOIN messages m ON m.session_id = s.id
+    LEFT JOIN leads l    ON l.session_id = s.id
+    WHERE s.id = $1
+    GROUP BY s.id, l.id, l.name, l.email, l.phone, l.requirement, l.intent, l.captured_at
+  `;
+  const { rows } = await query(sql, [sessionId]);
+  return rows[0] || null;
+}
+
+module.exports = {
+  upsertSession,
+  touchSession,
+  getSession,
+  listSessionsByWidget,
+  countSessionsByWidget,
+  getSessionWithLeadInfo,
+};
+

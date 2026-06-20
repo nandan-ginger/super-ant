@@ -40,8 +40,19 @@ const config = {
     topK: parseInt(process.env.RAG_TOP_K, 10) || 5,
   },
 
-  // Leads API protection key
-  leadsApiKey: process.env.LEADS_API_KEY || 'changeme_secret_key',
+  // Admin Auth
+  jwtSecret: process.env.JWT_SECRET || 'changeme_jwt_secret_32_chars_min',
+  jwtExpiry: process.env.JWT_EXPIRY || '7d',
+
+  // Server base URL (used to build widget embed script)
+  serverBaseUrl: (process.env.SERVER_BASE_URL || 'http://localhost:3001').replace(/\/$/, ''),
+
+  // Initial SuperAdmin credentials (only used to seed on first startup)
+  superAdmin: {
+    username: process.env.SUPER_ADMIN_USERNAME || 'superadmin',
+    email:    process.env.SUPER_ADMIN_EMAIL    || 'admin@example.com',
+    password: process.env.SUPER_ADMIN_PASSWORD || 'changeme_superadmin_password',
+  },
 };
 
 // Validate critical config at startup
