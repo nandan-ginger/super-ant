@@ -1,5 +1,5 @@
 'use strict';
-const { query } = require('../connection');
+const Message = require('../models/Message');
 
 /**
  * Persist a single chat message.
@@ -9,13 +9,8 @@ const { query } = require('../connection');
  * @param {string} params.content
  */
 async function saveMessage({ sessionId, role, content }) {
-  const sql = `
-    INSERT INTO messages (session_id, role, content)
-    VALUES ($1, $2, $3)
-    RETURNING *
-  `;
-  const { rows } = await query(sql, [sessionId, role, content]);
-  return rows[0];
+  const msg = await Message.create({ sessionId, role, content });
+  return msg.toJSON();
 }
 
 /**
@@ -24,17 +19,19 @@ async function saveMessage({ sessionId, role, content }) {
  * @param {number} [limit=50]
  */
 async function getMessages(sessionId, limit = 50) {
-  const sql = `
-    SELECT * FROM (
-      SELECT * FROM messages
-      WHERE session_id = $1
-      ORDER BY created_at DESC
-      LIMIT $2
-    ) sub
-    ORDER BY created_at ASC
-  `;
-  const { rows } = await query(sql, [sessionId, limit]);
-  return rows;
+  // Fetch newest N, then reverse so they are oldest-first (matches PG behaviour)
+  const docs = await Message.find({ sessionId })
+    .sort({ createdAt: -1 })
+    .limit(limit)
+    .lean();
+
+  return docs.reverse().map(d => ({
+    id:         d._id.toString(),
+    session_id: d.sessionId,
+    role:       d.role,
+    content:    d.content,
+    created_at: d.createdAt,
+  }));
 }
 
 /**
@@ -42,7 +39,7 @@ async function getMessages(sessionId, limit = 50) {
  * @param {string} sessionId
  */
 async function clearMessages(sessionId) {
-  await query(`DELETE FROM messages WHERE session_id = $1`, [sessionId]);
+  await Message.deleteMany({ sessionId });
 }
 
 module.exports = { saveMessage, getMessages, clearMessages };

@@ -1,9 +1,9 @@
 'use strict';
-const { query } = require('../connection');
+const Session = require('../models/Session');
 
 /**
  * Create or update a session record.
- * Uses INSERT … ON CONFLICT to handle reconnects gracefully.
+ * Uses findOneAndUpdate with upsert to handle reconnects gracefully.
  * @param {object} params
  * @param {string} params.id
  * @param {string} params.widgetCode
@@ -11,25 +11,31 @@ const { query } = require('../connection');
  * @param {string} [params.pageTitle]
  */
 async function upsertSession({ id, widgetCode, pageUrl, pageTitle }) {
-  const sql = `
-    INSERT INTO sessions (id, widget_code, page_url, page_title)
-    VALUES ($1, $2, $3, $4)
-    ON CONFLICT (id) DO UPDATE
-      SET last_active = NOW(),
-          page_url    = EXCLUDED.page_url,
-          page_title  = EXCLUDED.page_title
-    RETURNING *
-  `;
-  const { rows } = await query(sql, [id, widgetCode, pageUrl || null, pageTitle || null]);
-  return rows[0];
+  const doc = await Session.findOneAndUpdate(
+    { _id: id },
+    {
+      $set: {
+        widgetCode,
+        pageUrl:   pageUrl   || null,
+        pageTitle: pageTitle || null,
+        lastActive: new Date(),
+      },
+      $setOnInsert: {
+        _id:       id,
+        startedAt: new Date(),
+      },
+    },
+    { upsert: true, returnDocument: 'after' }
+  );
+  return doc.toJSON();
 }
 
 /**
- * Touch the last_active timestamp for a session.
+ * Touch the lastActive timestamp for a session.
  * @param {string} sessionId
  */
 async function touchSession(sessionId) {
-  await query(`UPDATE sessions SET last_active = NOW() WHERE id = $1`, [sessionId]);
+  await Session.findByIdAndUpdate(sessionId, { $set: { lastActive: new Date() } });
 }
 
 /**
@@ -37,42 +43,64 @@ async function touchSession(sessionId) {
  * @param {string} sessionId
  */
 async function getSession(sessionId) {
-  const { rows } = await query(`SELECT * FROM sessions WHERE id = $1`, [sessionId]);
-  return rows[0] || null;
+  const doc = await Session.findById(sessionId);
+  return doc ? doc.toJSON() : null;
 }
 
 /**
- * List sessions for a widget code with pagination, message count, and lead name if available.
- * Used for both live chats and visitors views.
+ * List sessions for a widget code with pagination.
+ * Includes message count and lead name if available.
  * @param {string} widgetCode
  * @param {object} [options]
  * @param {number} [options.limit=50]
  * @param {number} [options.offset=0]
  */
 async function listSessionsByWidget(widgetCode, { limit = 50, offset = 0 } = {}) {
-  const sql = `
-    SELECT
-      s.id,
-      s.widget_code,
-      s.page_url,
-      s.page_title,
-      s.started_at,
-      s.last_active,
-      COUNT(DISTINCT m.id)::int        AS message_count,
-      l.name                           AS visitor_name,
-      l.email                          AS visitor_email,
-      l.phone                          AS visitor_phone,
-      l.id                             AS lead_id
-    FROM sessions s
-    LEFT JOIN messages m ON m.session_id = s.id
-    LEFT JOIN leads l    ON l.session_id = s.id
-    WHERE s.widget_code = $1
-    GROUP BY s.id, l.name, l.email, l.phone, l.id
-    ORDER BY s.started_at DESC
-    LIMIT $2 OFFSET $3
-  `;
-  const { rows } = await query(sql, [widgetCode, limit, offset]);
-  return rows;
+  const Message  = require('../models/Message');
+  const Lead     = require('../models/Lead');
+
+  // Get sessions page
+  const sessions = await Session.find({ widgetCode })
+    .sort({ startedAt: -1 })
+    .skip(offset)
+    .limit(limit)
+    .lean();
+
+  if (sessions.length === 0) return [];
+
+  const sessionIds = sessions.map(s => s._id);
+
+  // Count messages per session
+  const messageCounts = await Message.aggregate([
+    { $match: { sessionId: { $in: sessionIds } } },
+    { $group: { _id: '$sessionId', count: { $sum: 1 } } },
+  ]);
+  const countMap = {};
+  for (const m of messageCounts) countMap[m._id] = m.count;
+
+  // Get lead info per session (take the most recent lead per session)
+  const leads = await Lead.find({ sessionId: { $in: sessionIds } })
+    .sort({ capturedAt: -1 })
+    .lean();
+  const leadMap = {};
+  for (const l of leads) {
+    if (!leadMap[l.sessionId]) leadMap[l.sessionId] = l; // first = most recent
+  }
+
+  // Combine into flat shape matching the old PostgreSQL rows
+  return sessions.map(s => ({
+    id:            s._id,
+    widget_code:   s.widgetCode,
+    page_url:      s.pageUrl   || null,
+    page_title:    s.pageTitle || null,
+    started_at:    s.startedAt,
+    last_active:   s.lastActive,
+    message_count: countMap[s._id] || 0,
+    visitor_name:  leadMap[s._id]?.name  || null,
+    visitor_email: leadMap[s._id]?.email || null,
+    visitor_phone: leadMap[s._id]?.phone || null,
+    lead_id:       leadMap[s._id]?._id?.toString() || null,
+  }));
 }
 
 /**
@@ -80,11 +108,7 @@ async function listSessionsByWidget(widgetCode, { limit = 50, offset = 0 } = {})
  * @param {string} widgetCode
  */
 async function countSessionsByWidget(widgetCode) {
-  const { rows } = await query(
-    `SELECT COUNT(*) AS total FROM sessions WHERE widget_code = $1`,
-    [widgetCode]
-  );
-  return parseInt(rows[0].total, 10);
+  return Session.countDocuments({ widgetCode });
 }
 
 /**
@@ -92,30 +116,33 @@ async function countSessionsByWidget(widgetCode) {
  * @param {string} sessionId
  */
 async function getSessionWithLeadInfo(sessionId) {
-  const sql = `
-    SELECT
-      s.id,
-      s.widget_code,
-      s.page_url,
-      s.page_title,
-      s.started_at,
-      s.last_active,
-      COUNT(DISTINCT m.id)::int  AS message_count,
-      l.id                       AS lead_id,
-      l.name                     AS visitor_name,
-      l.email                    AS visitor_email,
-      l.phone                    AS visitor_phone,
-      l.requirement              AS visitor_requirement,
-      l.intent                   AS visitor_intent,
-      l.captured_at              AS lead_captured_at
-    FROM sessions s
-    LEFT JOIN messages m ON m.session_id = s.id
-    LEFT JOIN leads l    ON l.session_id = s.id
-    WHERE s.id = $1
-    GROUP BY s.id, l.id, l.name, l.email, l.phone, l.requirement, l.intent, l.captured_at
-  `;
-  const { rows } = await query(sql, [sessionId]);
-  return rows[0] || null;
+  const Message = require('../models/Message');
+  const Lead    = require('../models/Lead');
+
+  const session = await Session.findById(sessionId).lean();
+  if (!session) return null;
+
+  const [messageCount, lead] = await Promise.all([
+    Message.countDocuments({ sessionId }),
+    Lead.findOne({ sessionId }).sort({ capturedAt: -1 }).lean(),
+  ]);
+
+  return {
+    id:                   session._id,
+    widget_code:          session.widgetCode,
+    page_url:             session.pageUrl   || null,
+    page_title:           session.pageTitle || null,
+    started_at:           session.startedAt,
+    last_active:          session.lastActive,
+    message_count:        messageCount,
+    lead_id:              lead?._id?.toString()  || null,
+    visitor_name:         lead?.name             || null,
+    visitor_email:        lead?.email            || null,
+    visitor_phone:        lead?.phone            || null,
+    visitor_requirement:  lead?.requirement      || null,
+    visitor_intent:       lead?.intent           || null,
+    lead_captured_at:     lead?.capturedAt       || null,
+  };
 }
 
 module.exports = {
@@ -126,4 +153,3 @@ module.exports = {
   countSessionsByWidget,
   getSessionWithLeadInfo,
 };
-

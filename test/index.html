@@ -500,36 +500,26 @@
        Ginger LiveChat AI Copilot Widget
        ===================================================== -->
   <script type="text/javascript" id="gingerlivechat">
-    var ginger_chat = ginger_chat || {};
-    var currentURL = window.location.href;
-    var domain = window.location.protocol + "//" + window.location.hostname + (window.location.port ? ":" + window.location.port : "");
-
-    // Use current domain if running on localhost or on the deployed server, otherwise fallback to production Render URL
-    var backendURL = (domain.indexOf('localhost') !== -1 || domain.indexOf('superant-backend') !== -1)
-      ? domain
-      : "https://superant-backend.onrender.com";
-
-    ginger_chat.salesiq = ginger_chat.salesiq || {
-      widgetcode: "demo_widget_001",
-      pageURL: currentURL,
-      domain: domain,
-      livechatURL: backendURL,
-      values: {},
-      ready: function () {
-        console.log('[Ginger] Widget ready');
-      },
-    };
-
-    var d = document;
-    var s = d.createElement("script");
-    s.type = "text/javascript";
-    s.id = "gingerlivechatscript";
-    s.defer = true;
-    s.src = backendURL + "/livechat/index.js";
-
-    var t = d.getElementsByTagName("script")[0];
-    t.parentNode.insertBefore(s, t);
-  </script>
+  var ginger_chat = ginger_chat || {};
+  var currentURL = window.location.href;
+  var domain = window.location.protocol + "//" + window.location.hostname + (window.location.port ? ":" + window.location.port : "");
+  ginger_chat.salesiq = ginger_chat.salesiq || {
+    widgetcode: "wgt_ndy20dok",
+    pageURL: currentURL,
+    domain: domain,
+    livechatURL: "http://localhost:3001",
+    values: {},
+    ready: function () { console.log('[Ginger] Widget ready'); },
+  };
+  var d = document;
+  var s = d.createElement("script");
+  s.type = "text/javascript";
+  s.id = "gingerlivechatscript";
+  s.defer = true;
+  s.src = "http://localhost:3001/livechat/index.js";
+  var t = d.getElementsByTagName("script")[0];
+  t.parentNode.insertBefore(s, t);
+</script>
 
 </body>
 

@@ -4,12 +4,10 @@ const path = require('path');
 const express = require('express');
 const cors = require('cors');
 const { Server: SocketIOServer } = require('socket.io');
-const fs = require('fs');
 
 const config = require('./config');
 const logger = require('./utils/logger');
-const { testConnection, closePool } = require('./database/connection');
-const { query } = require('./database/connection');
+const { connectDB, disconnectDB } = require('./database/connection');
 const { attachChatHandlers } = require('./sockets/chatHandler');
 const { seedSuperAdmin } = require('./database/queries/adminUsers');
 
@@ -22,7 +20,7 @@ app.set('trust proxy', 1);
 // CORS — allow widget to connect from any customer website
 app.use(cors({
   origin: config.corsOrigin === '*' ? '*' : config.corsOrigin.split(',').map(s => s.trim()),
-  methods: ['GET', 'POST'],
+  methods: ['GET', 'POST', 'PUT', 'DELETE'],
   credentials: true,
 }));
 
@@ -47,14 +45,22 @@ app.get('/', (req, res) => {
   res.sendFile(path.join(testDir, 'index.html'));
 });
 
+// Serve the admin dashboard
+const adminDistDir = path.join(__dirname, '..', 'frontend', 'admin', 'dist');
+app.use('/admin', express.static(adminDistDir));
+app.get('/admin*', (req, res) => {
+  res.sendFile(path.join(adminDistDir, 'index.html'));
+});
+
 // ─── Routes ───────────────────────────────────────────────────────────────────
-app.use('/health',         require('./routes/health'));
-app.use('/api/auth',       require('./routes/auth'));
-app.use('/api/widgets',    require('./routes/widgets'));
-app.use('/api/livechats',  require('./routes/livechats'));
-app.use('/api/visitors',   require('./routes/visitors'));
-app.use('/api/leads',      require('./routes/leads'));
-app.use('/api/chat',       require('./routes/chat'));
+app.use('/health',          require('./routes/health'));
+app.use('/api/auth',        require('./routes/auth'));
+app.use('/api/dashboard',   require('./routes/dashboard'));
+app.use('/api/widgets',     require('./routes/widgets'));
+app.use('/api/livechats',   require('./routes/livechats'));
+app.use('/api/visitors',    require('./routes/visitors'));
+app.use('/api/leads',       require('./routes/leads'));
+app.use('/api/chat',        require('./routes/chat'));
 
 // Catch-all 404
 app.use((req, res) => {
@@ -84,29 +90,6 @@ io.on('connection', (socket) => {
   attachChatHandlers(socket);
 });
 
-// ─── Database Migration ───────────────────────────────────────────────────────
-async function runMigrations() {
-  const migrations = [
-    path.join(__dirname, 'database', 'migrations', '001_init.sql'),
-    path.join(__dirname, 'database', 'migrations', '002_widgets.sql'),
-  ];
-
-  for (const migrationPath of migrations) {
-    try {
-      const sql = fs.readFileSync(migrationPath, 'utf8');
-      await query(sql);
-      logger.info(`Migration applied: ${path.basename(migrationPath)}`);
-    } catch (err) {
-      if (err.message.includes('already exists')) {
-        logger.debug(`Migration: ${path.basename(migrationPath)} — tables already exist, skipping`);
-      } else {
-        logger.error(`Migration failed: ${path.basename(migrationPath)}`, { error: err.message });
-        throw err;
-      }
-    }
-  }
-}
-
 // ─── Startup ──────────────────────────────────────────────────────────────────
 async function start() {
   logger.info('Starting Ginger LiveChat AI Copilot backend...');
@@ -116,19 +99,13 @@ async function start() {
     logger.warn('GEMINI_API_KEY is not configured — AI features will fail at runtime');
   }
 
-  // Connect to PostgreSQL
-  const dbReady = await testConnection();
+  // Connect to MongoDB
+  const dbReady = await connectDB();
   if (!dbReady) {
-    logger.error('Cannot connect to PostgreSQL. Please ensure the database is running.');
-    const connInfo = config.pg.connectionString
-      ? 'Connection String (masked)'
-      : `${config.pg.user}@${config.pg.host}:${config.pg.port}/${config.pg.database}`;
-    logger.error(`Connection: ${connInfo}`);
+    logger.error('Cannot connect to MongoDB. Please ensure the database is running.');
+    logger.error(`Connection URI: ${config.mongodb.uri}`);
     process.exit(1);
   }
-
-  // Run DB migrations
-  await runMigrations();
 
   // Seed superadmin (only if no superadmin exists yet)
   try {
@@ -147,6 +124,7 @@ async function start() {
     logger.info(`📡 Socket.IO ready`);
     logger.info(`🔌 Widget served at http://localhost:${config.port}/livechat/index.js`);
     logger.info(`❤️  Health: http://localhost:${config.port}/health`);
+    logger.info(`🍃 Database: MongoDB`);
     logger.info(`Environment: ${config.nodeEnv}`);
   });
 }
@@ -155,7 +133,7 @@ async function start() {
 async function shutdown(signal) {
   logger.info(`Received ${signal} — shutting down gracefully...`);
   server.close(async () => {
-    await closePool();
+    await disconnectDB();
     logger.info('Server closed. Goodbye.');
     process.exit(0);
   });
@@ -165,7 +143,7 @@ async function shutdown(signal) {
 }
 
 process.on('SIGTERM', () => shutdown('SIGTERM'));
-process.on('SIGINT', () => shutdown('SIGINT'));
+process.on('SIGINT',  () => shutdown('SIGINT'));
 process.on('uncaughtException', (err) => {
   logger.error('Uncaught exception', { error: err.message, stack: err.stack });
   process.exit(1);

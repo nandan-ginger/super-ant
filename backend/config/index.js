@@ -8,23 +8,18 @@ require('dotenv').config({ path: require('path').join(__dirname, '..', '..', '.e
  */
 const config = {
   // Server
-  port: parseInt(process.env.PORT, 10) || 3001,
+  port:    parseInt(process.env.PORT, 10) || 3001,
   nodeEnv: process.env.NODE_ENV || 'development',
 
   // Gemini AI
-  geminiApiKey: process.env.GEMINI_API_KEY || '',
-  geminiChatModel: process.env.GEMINI_CHAT_MODEL || 'gemini-2.0-flash',
+  geminiApiKey:        process.env.GEMINI_API_KEY || '',
+  geminiChatModel:     process.env.GEMINI_CHAT_MODEL || 'gemini-2.0-flash',
   geminiEmbeddingModel: process.env.GEMINI_EMBEDDING_MODEL || 'gemini-embedding-exp-03-07',
-  geminiLiveModelTTS: process.env.GEMINI_TTS_MODEL || 'gemini-3.1-flash-tts-preview',
-  // PostgreSQL
-  pg: {
-    connectionString: process.env.DATABASE_URL || '',
-    host: process.env.PG_HOST || 'localhost',
-    port: parseInt(process.env.PG_PORT, 10) || 5432,
-    database: process.env.PG_DATABASE || 'ginger_copilot',
-    user: process.env.PG_USER || 'ginger',
-    password: process.env.PG_PASSWORD || 'ginger_dev',
-    ssl: process.env.PG_SSL === 'true' || false,
+  geminiLiveModelTTS:  process.env.GEMINI_TTS_MODEL || 'gemini-3.1-flash-tts-preview',
+
+  // MongoDB
+  mongodb: {
+    uri: process.env.MONGODB_URI || 'mongodb://localhost:27017/ginger_copilot',
   },
 
   // CORS
@@ -36,8 +31,8 @@ const config = {
   // RAG token thresholds
   rag: {
     directLimit: parseInt(process.env.RAG_DIRECT_LIMIT, 10) || 5000,
-    chunkLimit: parseInt(process.env.RAG_CHUNK_LIMIT, 10) || 50000,
-    topK: parseInt(process.env.RAG_TOP_K, 10) || 5,
+    chunkLimit:  parseInt(process.env.RAG_CHUNK_LIMIT, 10)  || 50000,
+    topK:        parseInt(process.env.RAG_TOP_K, 10)        || 5,
   },
 
   // Admin Auth

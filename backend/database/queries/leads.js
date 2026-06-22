@@ -1,62 +1,85 @@
 'use strict';
-const { query } = require('../connection');
+const Lead = require('../models/Lead');
 
 /**
  * Save a new lead record to the database.
+ * widgetCode is looked up from the session if not explicitly supplied.
  * @param {object} params
  * @param {string} [params.sessionId]
+ * @param {string} [params.widgetCode]  Optional — auto-resolved from session when omitted
  * @param {string} [params.name]
  * @param {string} [params.email]
  * @param {string} [params.phone]
  * @param {string} [params.requirement]
  * @param {string} [params.intent]
  * @param {string} [params.pageUrl]
- * @returns {Promise<object>} The saved lead row
+ * @returns {Promise<object>} The saved lead document
  */
-async function saveLead({ sessionId, name, email, phone, requirement, intent, pageUrl }) {
-  const sql = `
-    INSERT INTO leads (session_id, name, email, phone, requirement, intent, page_url)
-    VALUES ($1, $2, $3, $4, $5, $6, $7)
-    RETURNING *
-  `;
-  const { rows } = await query(sql, [
-    sessionId || null,
-    name || null,
-    email || null,
-    phone || null,
-    requirement || null,
-    intent || null,
-    pageUrl || null,
-  ]);
-  return rows[0];
+async function saveLead({ sessionId, widgetCode, name, email, phone, requirement, intent, pageUrl }) {
+  // If widgetCode is not provided, try to get it from the session
+  let resolvedWidgetCode = widgetCode || null;
+  if (!resolvedWidgetCode && sessionId) {
+    const Session = require('../models/Session');
+    const session = await Session.findById(sessionId).lean();
+    resolvedWidgetCode = session?.widgetCode || null;
+  }
+
+  const lead = await Lead.create({
+    sessionId:   sessionId   || null,
+    widgetCode:  resolvedWidgetCode,
+    name:        name        || null,
+    email:       email       || null,
+    phone:       phone       || null,
+    requirement: requirement || null,
+    intent:      intent      || null,
+    pageUrl:     pageUrl     || null,
+    capturedAt:  new Date(),
+  });
+  return lead.toJSON();
 }
 
 /**
- * Get a single lead by its UUID.
+ * Get a single lead by its ID.
  * @param {string} leadId
  * @returns {Promise<object|null>}
  */
 async function getLeadById(leadId) {
-  const { rows } = await query(
-    `SELECT l.*, s.widget_code FROM leads l
-     LEFT JOIN sessions s ON s.id = l.session_id
-     WHERE l.id = $1`,
-    [leadId]
-  );
-  return rows[0] || null;
+  const lead = await Lead.findById(leadId).lean();
+  if (!lead) return null;
+  return {
+    id:          lead._id.toString(),
+    session_id:  lead.sessionId,
+    widget_code: lead.widgetCode,
+    name:        lead.name,
+    email:       lead.email,
+    phone:       lead.phone,
+    requirement: lead.requirement,
+    intent:      lead.intent,
+    page_url:    lead.pageUrl,
+    captured_at: lead.capturedAt,
+  };
 }
 
 /**
- * Get the lead associated with a session (if any).
+ * Get the lead associated with a session (most recent, if any).
  * @param {string} sessionId
  * @returns {Promise<object|null>}
  */
 async function getLeadBySession(sessionId) {
-  const { rows } = await query(
-    `SELECT * FROM leads WHERE session_id = $1 ORDER BY captured_at DESC LIMIT 1`,
-    [sessionId]
-  );
-  return rows[0] || null;
+  const lead = await Lead.findOne({ sessionId }).sort({ capturedAt: -1 }).lean();
+  if (!lead) return null;
+  return {
+    id:          lead._id.toString(),
+    session_id:  lead.sessionId,
+    widget_code: lead.widgetCode,
+    name:        lead.name,
+    email:       lead.email,
+    phone:       lead.phone,
+    requirement: lead.requirement,
+    intent:      lead.intent,
+    page_url:    lead.pageUrl,
+    captured_at: lead.capturedAt,
+  };
 }
 
 /**
@@ -65,68 +88,43 @@ async function getLeadBySession(sessionId) {
  * @param {number} [options.limit=100]
  * @param {number} [options.offset=0]
  * @param {string} [options.intent]       Filter by intent category
- * @param {string} [options.widgetCode]   Filter by widget (joins sessions)
+ * @param {string} [options.widgetCode]   Filter by widget (denormalized on Lead)
  */
 async function listLeads({ limit = 100, offset = 0, intent, widgetCode } = {}) {
-  const params = [];
-  let conditions = [];
+  const filter = {};
+  if (intent)      filter.intent      = intent;
+  if (widgetCode)  filter.widgetCode  = widgetCode;
 
-  let sql = `
-    SELECT l.*, s.widget_code
-    FROM leads l
-    LEFT JOIN sessions s ON s.id = l.session_id
-  `;
+  const leads = await Lead.find(filter)
+    .sort({ capturedAt: -1 })
+    .skip(offset)
+    .limit(limit)
+    .lean();
 
-  if (intent) {
-    params.push(intent);
-    conditions.push(`l.intent = $${params.length}`);
-  }
-  if (widgetCode) {
-    params.push(widgetCode);
-    conditions.push(`s.widget_code = $${params.length}`);
-  }
-
-  if (conditions.length > 0) {
-    sql += ` WHERE ` + conditions.join(' AND ');
-  }
-
-  params.push(limit, offset);
-  sql += ` ORDER BY l.captured_at DESC LIMIT $${params.length - 1} OFFSET $${params.length}`;
-
-  const { rows } = await query(sql, params);
-  return rows;
+  return leads.map(l => ({
+    id:          l._id.toString(),
+    session_id:  l.sessionId,
+    widget_code: l.widgetCode,
+    name:        l.name,
+    email:       l.email,
+    phone:       l.phone,
+    requirement: l.requirement,
+    intent:      l.intent,
+    page_url:    l.pageUrl,
+    captured_at: l.capturedAt,
+  }));
 }
 
 /**
- * Count total leads (optionally filtered by intent and/or widgetCode).
+ * Count total leads (optionally filtered).
  * @param {string} [intent]
  * @param {string} [widgetCode]
  */
 async function countLeads(intent, widgetCode) {
-  const params = [];
-  let conditions = [];
-
-  let sql = `
-    SELECT COUNT(*) AS total
-    FROM leads l
-    LEFT JOIN sessions s ON s.id = l.session_id
-  `;
-
-  if (intent) {
-    params.push(intent);
-    conditions.push(`l.intent = $${params.length}`);
-  }
-  if (widgetCode) {
-    params.push(widgetCode);
-    conditions.push(`s.widget_code = $${params.length}`);
-  }
-
-  if (conditions.length > 0) {
-    sql += ` WHERE ` + conditions.join(' AND ');
-  }
-
-  const { rows } = await query(sql, params);
-  return parseInt(rows[0].total, 10);
+  const filter = {};
+  if (intent)     filter.intent     = intent;
+  if (widgetCode) filter.widgetCode = widgetCode;
+  return Lead.countDocuments(filter);
 }
 
 module.exports = { saveLead, getLeadById, getLeadBySession, listLeads, countLeads };
