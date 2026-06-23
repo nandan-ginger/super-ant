@@ -1,0 +1,9 @@
+{
+  "name": "superant",
+  "version": "1.0.0",
+  "description": "Ginger LiveChat SuperAnt Workspace Root",
+  "scripts": {
+    "build": "cd frontend/admin && npm install && npm run build && cd ../../backend && npm install",
+    "start": "node backend/server.js"
+  }
+}
