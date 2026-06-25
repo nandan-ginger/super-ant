@@ -5,11 +5,11 @@ const express = require('express');
 const cors = require('cors');
 const { Server: SocketIOServer } = require('socket.io');
 
-const config = require('./config');
-const logger = require('./utils/logger');
-const { connectDB, disconnectDB } = require('./database/connection');
-const { attachChatHandlers } = require('./sockets/chatHandler');
-const { seedSuperAdmin } = require('./database/queries/adminUsers');
+const config = require('./common/config');
+const logger = require('./common/utils/logger');
+const { connectDB, disconnectDB } = require('./common/database/connection');
+const { attachChatHandlers } = require('./chatbot');
+const { seedSuperAdmin } = require('./common/queries/adminUsers');
 
 // ─── Express App Setup ────────────────────────────────────────────────────────
 const app = express();
@@ -52,15 +52,12 @@ app.get('/admin*', (req, res) => {
   res.sendFile(path.join(adminDistDir, 'index.html'));
 });
 
-// ─── Routes ───────────────────────────────────────────────────────────────────
-app.use('/health',          require('./routes/health'));
-app.use('/api/auth',        require('./routes/auth'));
-app.use('/api/dashboard',   require('./routes/dashboard'));
-app.use('/api/widgets',     require('./routes/widgets'));
-app.use('/api/livechats',   require('./routes/livechats'));
-app.use('/api/visitors',    require('./routes/visitors'));
-app.use('/api/leads',       require('./routes/leads'));
-app.use('/api/chat',        require('./routes/chat'));
+// Common routes
+app.use('/health',          require('./common/routes/health'));
+app.use('/api/auth',        require('./common/routes/auth'));
+
+// Chatbot product routes
+app.use('/api',             require('./chatbot').router);
 
 // Catch-all 404
 app.use((req, res) => {
