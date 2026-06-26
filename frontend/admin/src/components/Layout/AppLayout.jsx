@@ -4,7 +4,7 @@ import { Sidebar } from './Sidebar'
 import { Topbar } from './Topbar'
 import { Spinner } from '@/components/ui/Spinner'
 
-export function AppLayout({ action }) {
+export function AppLayout({ action, hub = false }) {
   const { admin, loading } = useAuth()
 
   if (loading) {
@@ -24,6 +24,11 @@ export function AppLayout({ action }) {
     return <Navigate to="/login" replace />
   }
 
+  // Hub mode — no sidebar or topbar (ProductHub has its own header)
+  if (hub) {
+    return <Outlet />
+  }
+
   return (
     <div className="flex min-h-screen bg-slate-100">
       <Sidebar />
@@ -36,3 +41,4 @@ export function AppLayout({ action }) {
     </div>
   )
 }
+
