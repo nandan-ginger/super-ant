@@ -15,6 +15,11 @@ import LiveChats  from '@/pages/chatbot/LiveChats'
 import Leads      from '@/pages/chatbot/Leads'
 import Visitors   from '@/pages/chatbot/Visitors'
 
+// ── Review Agent product pages ────────────────────────────────────────────────
+import ReviewDashboard   from '@/pages/review-agent/Dashboard'
+import ReviewList        from '@/pages/review-agent/Reviews'
+import ReviewEscalations from '@/pages/review-agent/Escalations'
+
 export default function App() {
   return (
     <AuthProvider>
@@ -43,6 +48,15 @@ export default function App() {
               <Route path="/chatbot/visitors"  element={<Visitors />} />
               {/* Default chatbot route */}
               <Route path="/chatbot" element={<Navigate to="/chatbot/dashboard" replace />} />
+            </Route>
+
+            {/* ── Review Agent product namespace (requires auth, with sidebar) ── */}
+            <Route element={<AppLayout />}>
+              <Route path="/review-agent/dashboard" element={<ReviewDashboard />} />
+              <Route path="/review-agent/reviews"   element={<ReviewList />} />
+              <Route path="/review-agent/escalations" element={<ReviewEscalations />} />
+              {/* Default review-agent route */}
+              <Route path="/review-agent" element={<Navigate to="/review-agent/dashboard" replace />} />
             </Route>
 
             {/* ── Legacy redirects (old flat paths → new namespaced paths) ──── */}

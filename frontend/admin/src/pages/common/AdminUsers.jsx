@@ -1,6 +1,5 @@
 import { useState, useEffect } from 'react'
-import { HiPlus, HiUsers, HiShieldCheck } from 'react-icons/hi2'
-import { HiChatBubbleLeftRight } from 'react-icons/hi2'
+import { HiPlus, HiUsers, HiShieldCheck, HiChatBubbleLeftRight, HiStar } from 'react-icons/hi2'
 import { auth } from '@/api/common/auth'
 import { Modal } from '@/components/ui/Modal'
 import { LoadingState } from '@/components/ui/Spinner'
@@ -26,6 +25,17 @@ const PRODUCT_PERMS = [
       { key: 'livechats', label: 'Live Chats', actions: ['view'] },
       { key: 'visitors',  label: 'Visitors',   actions: ['view'] },
       { key: 'leads',     label: 'Leads',      actions: ['view'] },
+    ],
+  },
+  {
+    product: 'review-agent',
+    label: 'Review Agent',
+    icon: HiStar,
+    color: 'text-amber-600',
+    bg: 'bg-amber-50',
+    border: 'border-amber-100',
+    sections: [
+      { key: 'reviews', label: 'Reviews', actions: ['view', 'edit'] },
     ],
   },
   // Future: add more products here, e.g.:

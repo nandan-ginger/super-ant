@@ -59,6 +59,10 @@ app.use('/api/auth',        require('./common/routes/auth'));
 // Chatbot product routes
 app.use('/api',             require('./chatbot').router);
 
+// Review Agent product routes
+app.use('/api/review-agent', require('./review-agent').router);
+
+
 // Catch-all 404
 app.use((req, res) => {
   res.status(404).json({ error: 'Not found' });
@@ -115,6 +119,14 @@ async function start() {
     logger.error('SuperAdmin seed failed', { error: err.message });
   }
 
+  // Start review polling job
+  try {
+    const { startReviewPolling } = require('./review-agent');
+    startReviewPolling();
+  } catch (err) {
+    logger.error('Failed to start review polling cron job', { error: err.message });
+  }
+
   // Start listening
   server.listen(config.port, () => {
     logger.info(`🚀 Server running on http://localhost:${config.port}`);
@@ -130,6 +142,12 @@ async function start() {
 async function shutdown(signal) {
   logger.info(`Received ${signal} — shutting down gracefully...`);
   server.close(async () => {
+    try {
+      const { stopReviewPolling } = require('./review-agent');
+      stopReviewPolling();
+    } catch (err) {
+      logger.error('Error stopping review polling job during shutdown', { error: err.message });
+    }
     await disconnectDB();
     logger.info('Server closed. Goodbye.');
     process.exit(0);

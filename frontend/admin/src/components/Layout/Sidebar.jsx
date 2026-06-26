@@ -9,6 +9,8 @@ import {
   HiUsers,
   HiArrowRightOnRectangle,
   HiArrowLeft,
+  HiStar,
+  HiExclamationTriangle,
 } from 'react-icons/hi2'
 import { MdLeaderboard } from 'react-icons/md'
 
@@ -27,7 +29,16 @@ const PRODUCT_NAV = {
       { to: '/chatbot/visitors',  label: 'Visitors',   icon: HiUserGroup,           section: null },
     ],
   },
-  // Future products: add their nav config here
+  'review-agent': {
+    label: 'Review Agent',
+    icon: '⭐',
+    basePath: '/review-agent',
+    items: [
+      { to: '/review-agent/dashboard',   label: 'Dashboard',   icon: HiSquares2X2,          section: 'Overview' },
+      { to: '/review-agent/reviews',     label: 'Reviews',     icon: HiStar,                section: 'Manage' },
+      { to: '/review-agent/escalations', label: 'Escalations', icon: HiExclamationTriangle, section: null },
+    ],
+  },
 }
 
 // ── Common items always visible regardless of product ─────────────────────────

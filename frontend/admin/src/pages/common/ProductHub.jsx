@@ -6,6 +6,7 @@ import {
   HiArrowRightOnRectangle,
   HiArrowRight,
   HiSparkles,
+  HiStar,
 } from 'react-icons/hi2'
 
 // ── Product Registry ──────────────────────────────────────────────────────────
@@ -24,18 +25,19 @@ const PRODUCTS = [
     badgeVariant: 'emerald',
     features: ['Live Chats', 'Widgets', 'Leads', 'Visitors'],
   },
-  // Future products can be added here:
-  // {
-  //   id: 'crm',
-  //   name: 'CRM',
-  //   route: '/crm/dashboard',
-  //   description: 'Customer relationship management.',
-  //   icon: HiUsers,
-  //   gradient: 'from-cyan-600 to-teal-600',
-  //   glow: 'shadow-cyan-500/30',
-  //   badge: 'Coming Soon',
-  //   features: ['Contacts', 'Deals', 'Pipelines'],
-  // },
+  {
+    id: 'review-agent',
+    name: 'Review Agent',
+    route: '/review-agent/dashboard',
+    description:
+      'Automated review analysis, sentiment detection, and AI-powered replies across Google, ReviewTreasures, and more.',
+    icon: HiStar,
+    gradient: 'from-amber-500 to-orange-500',
+    glow: 'shadow-amber-500/30',
+    badge: 'Active',
+    badgeVariant: 'emerald',
+    features: ['Sentiment Analysis', 'Auto Reply', 'Escalation Alerts', 'Multi-Platform'],
+  },
 ]
 
 function getInitials(name = '') {
