@@ -16,9 +16,8 @@ function SessionItem({ session, active, onClick }) {
   return (
     <button
       onClick={onClick}
-      className={`w-full text-left flex items-start gap-3 px-4 py-3.5 border-b border-slate-100 hover:bg-slate-50 transition-colors ${
-        active ? 'bg-brand-50 border-l-2 border-l-brand-500' : ''
-      }`}
+      className={`w-full text-left flex items-start gap-3 px-4 py-3.5 border-b border-slate-100 hover:bg-slate-50 transition-colors ${active ? 'bg-brand-50 border-l-2 border-l-brand-500' : ''
+        }`}
     >
       <div className="w-9 h-9 rounded-full bg-gradient-purple flex items-center justify-center text-white text-xs font-bold flex-shrink-0">
         {getInitials(session.display_name)}
@@ -64,19 +63,19 @@ function MessageBubble({ message }) {
 
 // ── LiveChats Page ────────────────────────────────────────────────────────────
 export default function LiveChats() {
-  const toast   = useToast()
+  const toast = useToast()
   const { widgets, loading: widgetsLoading } = useWidgets()
 
-  const [widgetCode, setWidgetCode]   = useState('')
-  const [sessions,   setSessions]     = useState([])
-  const [total,      setTotal]        = useState(0)
-  const [offset,     setOffset]       = useState(0)
+  const [widgetCode, setWidgetCode] = useState('')
+  const [sessions, setSessions] = useState([])
+  const [total, setTotal] = useState(0)
+  const [offset, setOffset] = useState(0)
   const [sessLoading, setSessLoading] = useState(false)
-  const [query,      setQuery]        = useState('')
+  const [query, setQuery] = useState('')
 
-  const [activeSession,  setActiveSession]  = useState(null)
-  const [messages,       setMessages]       = useState([])
-  const [msgsLoading,    setMsgsLoading]    = useState(false)
+  const [activeSession, setActiveSession] = useState(null)
+  const [messages, setMessages] = useState([])
+  const [msgsLoading, setMsgsLoading] = useState(false)
 
   const messagesEndRef = useRef(null)
 
@@ -128,7 +127,7 @@ export default function LiveChats() {
           onChange={e => { setWidgetCode(e.target.value); setOffset(0); setQuery('') }}
           className="min-w-[220px] px-3 py-2 rounded-xl bg-white border border-slate-200 text-sm text-slate-700 focus:outline-none focus:border-brand-400 focus:ring-2 focus:ring-brand-100 transition-all"
         >
-          <option value="">— Select a widget —</option>
+          <option value=""> -- Select a widget -- </option>
           {widgets.map(w => (
             <option key={w.widget_code} value={w.widget_code}>{w.name}</option>
           ))}

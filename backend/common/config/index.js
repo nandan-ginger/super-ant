@@ -72,6 +72,10 @@ const config = {
       admin: process.env.EMAIL_ADMIN || '',
     },
     pollCron: process.env.REVIEW_POLL_CRON || '*/5 * * * *',
+    reviewtreasures: {
+      apiUrl: process.env.REVIEW_TREASURES_API_URL || '',
+      apiKey: process.env.REVIEW_TREASURES_API_KEY || '',
+    },
   },
 };
 

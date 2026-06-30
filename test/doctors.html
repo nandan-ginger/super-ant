@@ -1,0 +1,443 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Our Doctors - CarePulse Clinic Specialists Directory</title>
+  <meta name="description"
+    content="Find the best cardiologist, pediatrician, neurologist, or dermatologist at CarePulse Clinic. Read reviews and book appointments." />
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+      background: #f8fafc;
+      color: #1e293b;
+      line-height: 1.6;
+    }
+
+    /* Premium Navigation */
+    header {
+      background: #ffffff;
+      box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.05), 0 2px 4px -2px rgb(0 0 0 / 0.05);
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+
+    .nav-container {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 16px 24px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .logo {
+      font-size: 24px;
+      font-weight: 800;
+      color: #0f766e;
+      text-decoration: none;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .logo span {
+      color: #0d9488;
+    }
+
+    nav ul {
+      display: flex;
+      gap: 28px;
+      list-style: none;
+    }
+
+    nav ul a {
+      color: #475569;
+      text-decoration: none;
+      font-size: 15px;
+      font-weight: 600;
+      transition: color 0.2s;
+    }
+
+    nav ul a:hover, nav ul a.active {
+      color: #0d9488;
+    }
+
+    .btn-book-nav {
+      background: #0d9488;
+      color: white !important;
+      padding: 8px 18px;
+      border-radius: 9999px;
+      transition: background 0.2s;
+    }
+
+    .btn-book-nav:hover {
+      background: #0f766e;
+    }
+
+    /* Page Header */
+    .page-header {
+      background: #f0fdfa;
+      padding: 40px 24px;
+      text-align: center;
+      border-bottom: 1px solid #e2e8f0;
+    }
+
+    .page-header h1 {
+      font-size: 36px;
+      font-weight: 800;
+      color: #111827;
+      margin-bottom: 8px;
+    }
+
+    .page-header p {
+      font-size: 16px;
+      color: #4b5563;
+    }
+
+    /* Doctor Directory */
+    .directory {
+      max-width: 1200px;
+      margin: 40px auto 80px;
+      padding: 0 24px;
+      display: grid;
+      grid-template-columns: 280px 1fr;
+      gap: 32px;
+    }
+
+    /* Filters Sidebar */
+    .filters {
+      background: white;
+      border-radius: 12px;
+      padding: 24px;
+      border: 1px solid #e2e8f0;
+      height: fit-content;
+    }
+
+    .filters h3 {
+      font-size: 18px;
+      color: #1e293b;
+      margin-bottom: 16px;
+      padding-bottom: 8px;
+      border-bottom: 2px solid #f1f5f9;
+    }
+
+    .filter-group {
+      margin-bottom: 20px;
+    }
+
+    .filter-label {
+      font-size: 14px;
+      font-weight: 700;
+      color: #475569;
+      margin-bottom: 8px;
+      display: block;
+    }
+
+    .filter-select {
+      width: 100%;
+      padding: 10px;
+      border-radius: 6px;
+      border: 1px solid #cbd5e1;
+      font-size: 14px;
+      color: #334155;
+      background-color: white;
+    }
+
+    /* Doctor List */
+    .doctor-list {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 24px;
+    }
+
+    .doc-row-card {
+      background: white;
+      border-radius: 12px;
+      border: 1px solid #e2e8f0;
+      padding: 24px;
+      display: flex;
+      gap: 24px;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+      align-items: center;
+    }
+
+    .doc-avatar-large {
+      width: 120px;
+      height: 120px;
+      border-radius: 12px;
+      background: linear-gradient(135deg, #e2fbf5, #ccfbf1);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 54px;
+      flex-shrink: 0;
+    }
+
+    .doc-main-info {
+      flex: 1;
+    }
+
+    .doc-name-link {
+      font-size: 22px;
+      font-weight: 700;
+      color: #0f766e;
+      text-decoration: none;
+      margin-bottom: 4px;
+      display: inline-block;
+    }
+
+    .doc-meta {
+      display: flex;
+      gap: 16px;
+      font-size: 14px;
+      color: #64748b;
+      margin-bottom: 12px;
+    }
+
+    .doc-meta span strong {
+      color: #334155;
+    }
+
+    .doc-desc {
+      font-size: 14px;
+      color: #475569;
+      line-height: 1.6;
+    }
+
+    .doc-booking-column {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-end;
+      gap: 12px;
+      flex-shrink: 0;
+      border-left: 1px dashed #e2e8f0;
+      padding-left: 24px;
+      min-width: 180px;
+    }
+
+    .row-fee {
+      font-size: 24px;
+      font-weight: 800;
+      color: #1e293b;
+    }
+
+    .row-fee span {
+      font-size: 13px;
+      color: #64748b;
+      font-weight: 400;
+    }
+
+    .doc-badge-status {
+      font-size: 12px;
+      font-weight: 700;
+      color: #15803d;
+      background: #dcfce7;
+      padding: 4px 10px;
+      border-radius: 9999px;
+    }
+
+    .btn-row-book {
+      background: #0d9488;
+      color: white;
+      padding: 10px 24px;
+      border-radius: 6px;
+      text-decoration: none;
+      font-weight: 700;
+      text-align: center;
+      width: 100%;
+      transition: background 0.2s;
+    }
+
+    .btn-row-book:hover {
+      background: #0f766e;
+    }
+
+    /* Footer */
+    footer {
+      background: #0f172a;
+      color: #94a3b8;
+      padding: 40px 24px;
+      text-align: center;
+      border-top: 1px solid #334155;
+    }
+
+    footer a {
+      color: #0d9488;
+      text-decoration: none;
+    }
+  </style>
+</head>
+
+<body>
+
+  <!-- Navigation -->
+  <header>
+    <div class="nav-container">
+      <a href="index.html" class="logo">➕ Care<span>Pulse</span></a>
+      <nav>
+        <ul>
+          <li><a href="index.html">Home</a></li>
+          <li><a href="doctors.html" class="active">Doctors</a></li>
+          <li><a href="about.html">About Us</a></li>
+          <li><a href="booking.html" class="btn-book-nav">Book Appointment</a></li>
+        </ul>
+      </nav>
+    </div>
+  </header>
+
+  <!-- Page Header -->
+  <section class="page-header">
+    <h1>Our Medical Specialists</h1>
+    <p>Find and book appointments with board-certified doctors in your city.</p>
+  </section>
+
+  <!-- Main Directory Layout -->
+  <main class="directory">
+    <!-- Sidebar Filters -->
+    <aside class="filters">
+      <h3>Filter Specialists</h3>
+      <div class="filter-group">
+        <label class="filter-label" for="spec-select">Specialization</label>
+        <select class="filter-select" id="spec-select">
+          <option value="all">All Departments</option>
+          <option value="cardiology">Cardiology</option>
+          <option value="pediatrics">Pediatrics</option>
+          <option value="neurology">Neurology</option>
+          <option value="dermatology">Dermatology</option>
+        </select>
+      </div>
+      <div class="filter-group">
+        <label class="filter-label" for="availability-select">Availability</label>
+        <select class="filter-select" id="availability-select">
+          <option value="any">Any Day</option>
+          <option value="today">Today</option>
+          <option value="tomorrow">Tomorrow</option>
+          <option value="week">This Week</option>
+        </select>
+      </div>
+    </aside>
+
+    <!-- Doctors Row Cards List -->
+    <section class="doctor-list">
+      <!-- Doc 1 -->
+      <div class="doc-row-card" data-spec="cardiology">
+        <div class="doc-avatar-large">👨‍⚕️</div>
+        <div class="doc-main-info">
+          <a href="booking.html?doc=andrew-miller" class="doc-name-link">Dr. Andrew Miller</a>
+          <div class="doc-meta">
+            <span>Department: <strong>Cardiology</strong></span>
+            <span>Experience: <strong>12 Years</strong></span>
+          </div>
+          <p class="doc-desc">Dr. Andrew Miller is a chief consultant cardiologist who has practiced for over 12 years. He completed his fellowship in interventional cardiology. He is an expert in managing coronary artery disease, heart failure, high blood pressure, and preventive cardiovascular care.</p>
+        </div>
+        <div class="doc-booking-column">
+          <span class="doc-badge-status">Available Today</span>
+          <div class="row-fee">$150 <span>/ Visit</span></div>
+          <a href="booking.html?doc=andrew-miller" class="btn-row-book">Book Visit</a>
+        </div>
+      </div>
+
+      <!-- Doc 2 -->
+      <div class="doc-row-card" data-spec="pediatrics">
+        <div class="doc-avatar-large">👩‍⚕️</div>
+        <div class="doc-main-info">
+          <a href="booking.html?doc=sarah-jenkins" class="doc-name-link">Dr. Sarah Jenkins</a>
+          <div class="doc-meta">
+            <span>Department: <strong>Pediatrics</strong></span>
+            <span>Experience: <strong>9 Years</strong></span>
+          </div>
+          <p class="doc-desc">Dr. Sarah Jenkins offers pediatric services, including newborn checkups, adolescent medicine, child growth development, immunizations, and asthma management. She has a warm approach that children love.</p>
+        </div>
+        <div class="doc-booking-column">
+          <span class="doc-badge-status">Available Tomorrow</span>
+          <div class="row-fee">$120 <span>/ Visit</span></div>
+          <a href="booking.html?doc=sarah-jenkins" class="btn-row-book">Book Visit</a>
+        </div>
+      </div>
+
+      <!-- Doc 3 -->
+      <div class="doc-row-card" data-spec="neurology">
+        <div class="doc-avatar-large">👨‍⚕️</div>
+        <div class="doc-main-info">
+          <a href="booking.html?doc=robert-chen" class="doc-name-link">Dr. Robert Chen</a>
+          <div class="doc-meta">
+            <span>Department: <strong>Neurology</strong></span>
+            <span>Experience: <strong>15 Years</strong></span>
+          </div>
+          <p class="doc-desc">Dr. Robert Chen is a double-board certified neurologist with extensive clinical practice in diagnosing and treating neuromuscular disorders, stroke, epilepsy, chronic migraines, Parkinson's disease, and clinical memory loss.</p>
+        </div>
+        <div class="doc-booking-column">
+          <span class="doc-badge-status">Available Today</span>
+          <div class="row-fee">$180 <span>/ Visit</span></div>
+          <a href="booking.html?doc=robert-chen" class="btn-row-book">Book Visit</a>
+        </div>
+      </div>
+
+      <!-- Doc 4 -->
+      <div class="doc-row-card" data-spec="dermatology">
+        <div class="doc-avatar-large">👩‍⚕️</div>
+        <div class="doc-main-info">
+          <a href="booking.html?doc=emily-watson" class="doc-name-link">Dr. Emily Watson</a>
+          <div class="doc-meta">
+            <span>Department: <strong>Dermatology</strong></span>
+            <span>Experience: <strong>7 Years</strong></span>
+          </div>
+          <p class="doc-desc">Dr. Emily Watson provides state-of-the-art dermatological solutions for skin conditions, including acne, eczema, psoriasis, skin cancer screenings, and advanced anti-aging cosmetic procedures.</p>
+        </div>
+        <div class="doc-booking-column">
+          <span class="doc-badge-status">Available Wednesday</span>
+          <div class="row-fee">$110 <span>/ Visit</span></div>
+          <a href="booking.html?doc=emily-watson" class="btn-row-book">Book Visit</a>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <!-- Footer -->
+  <footer>
+    <p>© 2026 CarePulse Clinic. All rights reserved. | <a href="about.html">Learn more about us</a></p>
+  </footer>
+
+  <!-- =====================================================
+       Ginger LiveChat AI Copilot Widget
+       ===================================================== -->
+  <script type="text/javascript" id="gingerlivechat">
+    var ginger_chat = ginger_chat || {};
+    var currentURL = window.location.href;
+    var domain = window.location.protocol + "//" + window.location.hostname + (window.location.port ? ":" + window.location.port : "");
+    
+    // Automatically detect host to work both locally and in staging
+    var backendURL = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
+      ? (window.location.protocol + '//' + window.location.hostname + ':3001')
+      : 'https://superant-backend-9scx.onrender.com';
+
+    ginger_chat.salesiq = ginger_chat.salesiq || {
+      widgetcode: "wgt_w7tg8jdv",
+      pageURL: currentURL,
+      domain: domain,
+      livechatURL: backendURL,
+      values: {},
+      ready: function () { console.log('[Ginger] Widget ready'); },
+    };
+    var d = document;
+    var s = d.createElement("script");
+    s.type = "text/javascript";
+    s.id = "gingerlivechatscript";
+    s.defer = true;
+    s.src = backendURL + "/livechat/index.js";
+    var t = d.getElementsByTagName("script")[0];
+    t.parentNode.insertBefore(s, t);
+  </script>
+
+</body>
+
+</html>

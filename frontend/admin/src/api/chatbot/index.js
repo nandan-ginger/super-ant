@@ -1,4 +1,5 @@
 import { apiFetch } from '../core'
+import { pageRules } from './pageRules'
 
 // ── Dashboard ─────────────────────────────────────────────────────────────────
 export const dashboard = {
@@ -20,6 +21,9 @@ export const widgets = {
   get: (code) =>
     apiFetch(`/api/widgets/${code}`),
 }
+
+// ── Page Rules ────────────────────────────────────────────────────────────────
+export { pageRules }
 
 // ── Live Chats ────────────────────────────────────────────────────────────────
 export const livechats = {

@@ -1,0 +1,353 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Book Appointment - CarePulse Clinic Online Booking</title>
+  <meta name="description"
+    content="Schedule an appointment with top medical specialists at CarePulse Clinic. Select date, time, and department." />
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+      background: #f8fafc;
+      color: #1e293b;
+      line-height: 1.6;
+    }
+
+    /* Premium Navigation */
+    header {
+      background: #ffffff;
+      box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.05), 0 2px 4px -2px rgb(0 0 0 / 0.05);
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+
+    .nav-container {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 16px 24px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .logo {
+      font-size: 24px;
+      font-weight: 800;
+      color: #0f766e;
+      text-decoration: none;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .logo span {
+      color: #0d9488;
+    }
+
+    nav ul {
+      display: flex;
+      gap: 28px;
+      list-style: none;
+    }
+
+    nav ul a {
+      color: #475569;
+      text-decoration: none;
+      font-size: 15px;
+      font-weight: 600;
+      transition: color 0.2s;
+    }
+
+    nav ul a:hover, nav ul a.active {
+      color: #0d9488;
+    }
+
+    .btn-book-nav {
+      background: #0d9488;
+      color: white !important;
+      padding: 8px 18px;
+      border-radius: 9999px;
+      transition: background 0.2s;
+    }
+
+    .btn-book-nav:hover {
+      background: #0f766e;
+    }
+
+    /* Container layout */
+    .booking-wrapper {
+      max-width: 800px;
+      margin: 60px auto 80px;
+      padding: 0 24px;
+    }
+
+    .booking-card {
+      background: white;
+      border-radius: 16px;
+      border: 1px solid #e2e8f0;
+      box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.1);
+      padding: 40px;
+    }
+
+    .booking-card h1 {
+      font-size: 28px;
+      font-weight: 800;
+      color: #1e293b;
+      margin-bottom: 8px;
+    }
+
+    .booking-card p.subtitle {
+      font-size: 15px;
+      color: #64748b;
+      margin-bottom: 32px;
+    }
+
+    /* Form Fields */
+    .form-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 20px;
+      margin-bottom: 24px;
+    }
+
+    .form-group {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .form-group.full-width {
+      grid-column: span 2;
+    }
+
+    label {
+      font-size: 14px;
+      font-weight: 700;
+      color: #475569;
+    }
+
+    input, select, textarea {
+      padding: 12px;
+      border-radius: 8px;
+      border: 1px solid #cbd5e1;
+      font-size: 14px;
+      color: #1e293b;
+      background-color: white;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+
+    input:focus, select:focus, textarea:focus {
+      border-color: #0d9488;
+      box-shadow: 0 0 0 3px rgba(13, 148, 136, 0.15);
+    }
+
+    .btn-submit {
+      background: #0d9488;
+      color: white;
+      border: none;
+      padding: 14px 28px;
+      border-radius: 8px;
+      font-weight: 700;
+      font-size: 16px;
+      cursor: pointer;
+      width: 100%;
+      transition: background 0.2s;
+    }
+
+    .btn-submit:hover {
+      background: #0f766e;
+    }
+
+    /* Footer */
+    footer {
+      background: #0f172a;
+      color: #94a3b8;
+      padding: 40px 24px;
+      text-align: center;
+      border-top: 1px solid #334155;
+    }
+
+    footer a {
+      color: #0d9488;
+      text-decoration: none;
+    }
+  </style>
+</head>
+
+<body>
+
+  <!-- Navigation -->
+  <header>
+    <div class="nav-container">
+      <a href="index.html" class="logo">➕ Care<span>Pulse</span></a>
+      <nav>
+        <ul>
+          <li><a href="index.html">Home</a></li>
+          <li><a href="doctors.html">Doctors</a></li>
+          <li><a href="about.html">About Us</a></li>
+          <li><a href="booking.html" class="btn-book-nav active">Book Appointment</a></li>
+        </ul>
+      </nav>
+    </div>
+  </header>
+
+  <!-- Booking Form Area -->
+  <main class="booking-wrapper">
+    <div class="booking-card">
+      <h1>Book an Appointment</h1>
+      <p class="subtitle">Complete the form below to secure your consultation slot with one of our specialists.</p>
+      
+      <form id="appointment-form" onsubmit="event.preventDefault(); alert('Appointment requested! We will call or email you shortly to confirm your time slot.');">
+        <div class="form-grid">
+          <!-- Full Name -->
+          <div class="form-group">
+            <label for="fullname">Patient Full Name *</label>
+            <input type="text" id="fullname" placeholder="e.g. John Doe" required />
+          </div>
+
+          <!-- Email -->
+          <div class="form-group">
+            <label for="email">Email Address *</label>
+            <input type="email" id="email" placeholder="e.g. john@example.com" required />
+          </div>
+
+          <!-- Phone -->
+          <div class="form-group">
+            <label for="phone">Phone Number *</label>
+            <input type="tel" id="phone" placeholder="e.g. +1 (555) 019-9182" required />
+          </div>
+
+          <!-- Department / Specialty -->
+          <div class="form-group">
+            <label for="dept">Specialization / Department *</label>
+            <select id="dept" required onchange="updateDoctorsList()">
+              <option value="">Select Department</option>
+              <option value="cardiology">Cardiology</option>
+              <option value="pediatrics">Pediatrics</option>
+              <option value="neurology">Neurology</option>
+              <option value="dermatology">Dermatology</option>
+            </select>
+          </div>
+
+          <!-- Preferred Doctor -->
+          <div class="form-group">
+            <label for="doctor">Preferred Doctor *</label>
+            <select id="doctor" required>
+              <option value="">Select Doctor</option>
+              <option value="andrew-miller" data-dept="cardiology">Dr. Andrew Miller ($150)</option>
+              <option value="sarah-jenkins" data-dept="pediatrics">Dr. Sarah Jenkins ($120)</option>
+              <option value="robert-chen" data-dept="neurology">Dr. Robert Chen ($180)</option>
+              <option value="emily-watson" data-dept="dermatology">Dr. Emily Watson ($110)</option>
+            </select>
+          </div>
+
+          <!-- Preferred Date -->
+          <div class="form-group">
+            <label for="date">Appointment Date *</label>
+            <input type="date" id="date" required />
+          </div>
+
+          <!-- Additional Notes -->
+          <div class="form-group full-width">
+            <label for="notes">Briefly describe the reason for visit</label>
+            <textarea id="notes" rows="4" placeholder="Brief explanation of symptoms, checkup requests, or history..."></textarea>
+          </div>
+        </div>
+
+        <button type="submit" class="btn-submit">Submit Appointment Request</button>
+      </form>
+    </div>
+  </main>
+
+  <!-- Footer -->
+  <footer>
+    <p>© 2026 CarePulse Clinic. All rights reserved. | <a href="about.html">Learn more about us</a></p>
+  </footer>
+
+  <script type="text/javascript">
+    // Auto-select doctor from URL query parameters if present
+    window.addEventListener('DOMContentLoaded', () => {
+      const urlParams = new URLSearchParams(window.location.search);
+      const docParam = urlParams.get('doc');
+      if (docParam) {
+        const docSelect = document.getElementById('doctor');
+        docSelect.value = docParam;
+        
+        // Find corresponding department option
+        const selectedOpt = docSelect.querySelector(`option[value="${docParam}"]`);
+        if (selectedOpt) {
+          const dept = selectedOpt.getAttribute('data-dept');
+          if (dept) {
+            document.getElementById('dept').value = dept;
+          }
+        }
+      }
+    });
+
+    function updateDoctorsList() {
+      const deptValue = document.getElementById('dept').value;
+      const docSelect = document.getElementById('doctor');
+      const options = docSelect.querySelectorAll('option');
+
+      options.forEach(opt => {
+        if (opt.value === "") return;
+        const optDept = opt.getAttribute('data-dept');
+        if (deptValue === "" || optDept === deptValue) {
+          opt.style.display = "block";
+        } else {
+          opt.style.display = "none";
+        }
+      });
+
+      // Clear doctor selection if it doesn't match the new department
+      const currentSelected = docSelect.querySelector('option:checked');
+      if (currentSelected && currentSelected.value !== "" && currentSelected.getAttribute('data-dept') !== deptValue && deptValue !== "") {
+        docSelect.value = "";
+      }
+    }
+  </script>
+
+  <!-- =====================================================
+       Ginger LiveChat AI Copilot Widget
+       ===================================================== -->
+  <script type="text/javascript" id="gingerlivechat">
+    var ginger_chat = ginger_chat || {};
+    var currentURL = window.location.href;
+    var domain = window.location.protocol + "//" + window.location.hostname + (window.location.port ? ":" + window.location.port : "");
+    
+    // Automatically detect host to work both locally and in staging
+    var backendURL = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
+      ? (window.location.protocol + '//' + window.location.hostname + ':3001')
+      : 'https://superant-backend-9scx.onrender.com';
+
+    ginger_chat.salesiq = ginger_chat.salesiq || {
+      widgetcode: "wgt_w7tg8jdv",
+      pageURL: currentURL,
+      domain: domain,
+      livechatURL: backendURL,
+      values: {},
+      ready: function () { console.log('[Ginger] Widget ready'); },
+    };
+    var d = document;
+    var s = d.createElement("script");
+    s.type = "text/javascript";
+    s.id = "gingerlivechatscript";
+    s.defer = true;
+    s.src = backendURL + "/livechat/index.js";
+    var t = d.getElementsByTagName("script")[0];
+    t.parentNode.insertBefore(s, t);
+  </script>
+
+</body>
+
+</html>

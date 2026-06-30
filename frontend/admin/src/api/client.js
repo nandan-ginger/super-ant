@@ -12,5 +12,5 @@
  */
 export { apiFetch, setUnauthorizedHandler } from './core'
 export { auth } from './common/auth'
-export { dashboard, widgets, livechats, leads, visitors } from './chatbot/index'
+export { dashboard, widgets, pageRules, livechats, leads, visitors } from './chatbot/index'
 

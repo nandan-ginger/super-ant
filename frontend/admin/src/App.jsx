@@ -9,11 +9,12 @@ import ProductHub from '@/pages/common/ProductHub'
 import AdminUsers from '@/pages/common/AdminUsers'
 
 // ── Chatbot product pages ─────────────────────────────────────────────────────
-import Dashboard  from '@/pages/chatbot/Dashboard'
-import Widgets    from '@/pages/chatbot/Widgets'
-import LiveChats  from '@/pages/chatbot/LiveChats'
-import Leads      from '@/pages/chatbot/Leads'
-import Visitors   from '@/pages/chatbot/Visitors'
+import Dashboard      from '@/pages/chatbot/Dashboard'
+import Widgets        from '@/pages/chatbot/Widgets'
+import PageManagement from '@/pages/chatbot/PageManagement'
+import LiveChats      from '@/pages/chatbot/LiveChats'
+import Leads          from '@/pages/chatbot/Leads'
+import Visitors       from '@/pages/chatbot/Visitors'
 
 // ── Review Agent product pages ────────────────────────────────────────────────
 import ReviewDashboard   from '@/pages/review-agent/Dashboard'
@@ -41,11 +42,12 @@ export default function App() {
 
             {/* ── Chatbot product namespace (requires auth, with sidebar) ───── */}
             <Route element={<AppLayout />}>
-              <Route path="/chatbot/dashboard" element={<Dashboard />} />
-              <Route path="/chatbot/widgets"   element={<Widgets />} />
-              <Route path="/chatbot/chats"     element={<LiveChats />} />
-              <Route path="/chatbot/leads"     element={<Leads />} />
-              <Route path="/chatbot/visitors"  element={<Visitors />} />
+              <Route path="/chatbot/dashboard"        element={<Dashboard />} />
+              <Route path="/chatbot/widgets"          element={<Widgets />} />
+              <Route path="/chatbot/page-management" element={<PageManagement />} />
+              <Route path="/chatbot/chats"           element={<LiveChats />} />
+              <Route path="/chatbot/leads"           element={<Leads />} />
+              <Route path="/chatbot/visitors"        element={<Visitors />} />
               {/* Default chatbot route */}
               <Route path="/chatbot" element={<Navigate to="/chatbot/dashboard" replace />} />
             </Route>

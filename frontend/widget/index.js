@@ -35,6 +35,10 @@
   let leadFormShown = false;
   let contextIndexed = false;
 
+  // Page config fetched from server (public endpoint)
+  let pageConfig = []; // array of { urlPath, popupDelaySeconds, welcomeMessage }
+  let autoOpenTimer = null; // pending auto-open timeout handle
+
   // Voice State
   let currentLanguage = localStorage.getItem('ginger_lang') || 'en';
   let mediaRecorder = null;
@@ -51,37 +55,32 @@
   // to be re-emitted automatically after context is restored.
   let pendingMessage = null;
 
-  // ─── Client-side embedding cache (sessionStorage, cleared on tab close) ────────
-  const EMBEDDING_CACHE_KEY = 'ginger_emb_' + WIDGET_CODE;
+  // ─── Client-side page context cache (sessionStorage, cleared on tab close) ────
+  // NOTE: We only cache the raw scraped page text — NOT embeddings.
+  // Embeddings are created lazily by the server on the user's first message.
+  // This avoids wasting Gemini embedding API tokens on pages the user never chats on.
   const PAGE_CONTEXT_CACHE_KEY = 'ginger_ctx_' + WIDGET_CODE;
 
-  function saveEmbeddingCache(embeddedChunks, pageContext) {
+  function savePageContextCache(pageContext) {
     try {
-      sessionStorage.setItem(EMBEDDING_CACHE_KEY, JSON.stringify(embeddedChunks));
       if (pageContext) {
         sessionStorage.setItem(PAGE_CONTEXT_CACHE_KEY, JSON.stringify(pageContext));
       }
     } catch (e) {
-      console.warn('[Ginger] Failed to cache embeddings in sessionStorage', e);
+      console.warn('[Ginger] Failed to cache page context in sessionStorage', e);
     }
   }
 
-  function loadEmbeddingCache() {
+  function loadPageContextCache() {
     try {
-      const raw = sessionStorage.getItem(EMBEDDING_CACHE_KEY);
-      const ctxRaw = sessionStorage.getItem(PAGE_CONTEXT_CACHE_KEY);
-      if (!raw) return null;
-      return {
-        embeddedChunks: JSON.parse(raw),
-        pageContext: ctxRaw ? JSON.parse(ctxRaw) : null,
-      };
+      const raw = sessionStorage.getItem(PAGE_CONTEXT_CACHE_KEY);
+      return raw ? JSON.parse(raw) : null;
     } catch (e) {
       return null;
     }
   }
 
-  function clearEmbeddingCache() {
-    sessionStorage.removeItem(EMBEDDING_CACHE_KEY);
+  function clearPageContextCache() {
     sessionStorage.removeItem(PAGE_CONTEXT_CACHE_KEY);
   }
 
@@ -1190,47 +1189,31 @@
     });
 
     socket.on('context_indexed', (data) => {
+      // context_indexed is now only fired when embeddings are actually built
+      // (on the user's first message, not on page load)
       contextIndexed = true;
       els.statusText.textContent = 'Ready';
-      // Cache the embedded chunks client-side so reloads and expired sessions can restore fast
-      if (data.embeddedChunks && data.embeddedChunks.length > 0) {
-        const cachedCtx = loadEmbeddingCache()?.pageContext;
-        saveEmbeddingCache(data.embeddedChunks, cachedCtx);
-      }
-      // If context was restored after a session expiry and we have a pending message, re-send it now
-      if (data.restoredFromCache && pendingMessage) {
+
+      // If a message was pending (held while indexing happened on first message), re-send it
+      if (pendingMessage) {
         const payload = pendingMessage;
         pendingMessage = null;
-        // Small delay to ensure server-side session is fully written before processing
         setTimeout(() => {
           socket.emit('chat_message', payload);
         }, 200);
       }
     });
 
-    // Server signals that session/embeddings expired — re-upload from client cache
+    // Server signals context is stored (raw, not yet embedded) — widget can now show "Ready"
+    socket.on('context_ready', () => {
+      els.statusText.textContent = 'Ready';
+    });
+
+    // Server signals that session context expired — re-scrape the current page
     socket.on('context_required', (data) => {
-      console.warn('[Ginger] Server context expired — restoring from client cache. Reason:', data?.reason);
-      // Capture the pending message payload that was blocked (set by sendMessage/recording)
-      // pendingMessage is already set at this point
-      const cache = loadEmbeddingCache();
-      if (cache && cache.embeddedChunks && cache.embeddedChunks.length > 0) {
-        // Re-upload pre-computed embeddings (no scraping or API call needed)
-        socket.emit('context_update', {
-          pageContext: cache.pageContext,
-          embeddedChunks: cache.embeddedChunks,
-        });
-        els.statusText.textContent = 'Preparing...';
-        // Show a helpful status indicator that message will retry
-        if (pendingMessage) {
-          showTyping(els);
-        }
-      } else {
-        // No cache available — fall back to re-scrape (must re-index, so pending message
-        // will be auto-sent when context_indexed fires with restoredFromCache)
-        console.warn('[Ginger] No client cache — falling back to full re-scrape');
-        sendContextUpdate(els);
-      }
+      console.warn('[Ginger] Server context expired — re-scraping page. Reason:', data?.reason);
+      // Re-scrape the page (raw text only, no embedding cost)
+      sendContextUpdate(els);
     });
 
     // Transcription complete event (when user voice message is transcribed)
@@ -1508,25 +1491,15 @@
   function sendContextUpdate(els) {
     if (!socket || !socket.connected) return;
 
-    // Fast path: if we have client-side cached embeddings, re-upload them directly.
-    // This avoids re-scraping the page and avoids calling the embedding API again.
-    const cache = loadEmbeddingCache();
-    if (cache && cache.embeddedChunks && cache.embeddedChunks.length > 0) {
-      socket.emit('context_update', {
-        pageContext: cache.pageContext,
-        embeddedChunks: cache.embeddedChunks,
-      });
-      els.statusText.textContent = 'Preparing...';
-      return;
-    }
-
-    // No cache — do a fresh page scrape and embed
+    // Always do a fresh page scrape — just send raw text to the server.
+    // The server stores it in the session but does NOT embed yet.
+    // Embeddings are created lazily on the user's first chat message.
     const doExtract = () => {
       if (!window.GingerContextExtractor) return;
       try {
         const pageContext = window.GingerContextExtractor.extractPageContext();
-        // Save raw page context now; embeddings will be saved when context_indexed fires
-        saveEmbeddingCache([], pageContext);
+        // Cache raw context locally so session recovery can re-send it cheaply
+        savePageContextCache(pageContext);
         socket.emit('context_update', { pageContext });
         els.statusText.textContent = 'Preparing...';
       } catch (err) {
@@ -1604,24 +1577,95 @@
     const observer = new MutationObserver(() => {
       if (window.location.href !== lastUrl) {
         lastUrl = window.location.href;
-        // Page navigated — re-extract context
-        setTimeout(() => sendContextUpdate(els), 500);
+        // Page navigated — clear cached page context so we re-scrape the new page fresh
+        clearPageContextCache();
+        // Re-extract and index the new page context
+        setTimeout(() => {
+          sendContextUpdate(els);
+          // Re-apply page rules for the new URL (auto-open / welcome message)
+          applyPageRules(els);
+        }, 500);
       }
     });
     observer.observe(document.body, { childList: true, subtree: true });
 
     // Also hook into popstate (back/forward)
-    window.addEventListener('popstate', () => setTimeout(() => sendContextUpdate(els), 500));
+    window.addEventListener('popstate', () => {
+      clearPageContextCache();
+      setTimeout(() => {
+        sendContextUpdate(els);
+        applyPageRules(els);
+      }, 500);
+    });
   }
 
   // ─── Welcome Message ──────────────────────────────────────────────────────────
-  function showWelcomeMessage(els) {
+  function showWelcomeMessage(els, customMessage) {
     const pageTitle = document.title || 'this page';
-    appendMessage(
-      els,
-      'bot',
-      `👋 Hi! I'm your AI assistant for "${pageTitle}". Ask me anything, I'll answer using the content on this page.`
-    );
+    const text = customMessage ||
+      `👋 Hi! I'm your AI assistant for "${pageTitle}". Ask me anything, I'll answer using the content on this page.`;
+    appendMessage(els, 'bot', text);
+  }
+
+  // ─── Page Config Fetch ────────────────────────────────────────────────────────
+  /**
+   * Fetch the page rules for this widget from the server.
+   * Only the public-safe fields are returned (no staticContext).
+   * Stored in memory as pageConfig array.
+   */
+  function fetchPageConfig() {
+    if (!BACKEND_URL || !WIDGET_CODE || WIDGET_CODE === 'demo') return;
+    fetch(`${BACKEND_URL}/api/widgets/${WIDGET_CODE}/config`)
+      .then(r => r.ok ? r.json() : null)
+      .then(data => {
+        if (data && Array.isArray(data.pageRules)) {
+          pageConfig = data.pageRules;
+        }
+      })
+      .catch(() => {}); // silently ignore — missing config = default behaviour
+  }
+
+  // ─── Auto-open Scheduling ─────────────────────────────────────────────────────
+  /**
+   * Check current page path against pageConfig rules.
+   * If a matching rule has popupDelaySeconds configured, schedule auto-open.
+   * If a matching rule has a welcomeMessage, update the existing welcome bubble.
+   * The launcher button is always visible — this is purely additive.
+   */
+  function applyPageRules(els) {
+    // Cancel any pending auto-open from a previous page
+    if (autoOpenTimer !== null) {
+      clearTimeout(autoOpenTimer);
+      autoOpenTimer = null;
+    }
+
+    if (!pageConfig || pageConfig.length === 0) return;
+
+    const currentPath = window.location.pathname;
+    const matchedRule = pageConfig.find(r => r.urlPath === currentPath);
+
+    if (!matchedRule) return;
+
+    // If this rule has a welcome message override, inject it as the first bot message
+    if (matchedRule.welcomeMessage) {
+      const msgEl = els.messages.querySelector('.gc-msg.gc-bot .gc-bubble');
+      if (msgEl) {
+        msgEl.innerHTML = formatMarkdown(matchedRule.welcomeMessage);
+      } else {
+        appendMessage(els, 'bot', matchedRule.welcomeMessage);
+      }
+    }
+
+    // Schedule auto-open if a delay is configured
+    if (matchedRule.popupDelaySeconds !== null && matchedRule.popupDelaySeconds !== undefined) {
+      const delayMs = Math.max(0, Number(matchedRule.popupDelaySeconds)) * 1000;
+      autoOpenTimer = setTimeout(() => {
+        autoOpenTimer = null;
+        if (!isOpen) {
+          togglePanel(els, true);
+        }
+      }, delayMs);
+    }
   }
 
   // ─── Init ─────────────────────────────────────────────────────────────────────
@@ -1631,7 +1675,7 @@
 
     const els = buildWidget();
 
-    // Welcome message
+    // Default welcome message (may be overridden by page rule)
     showWelcomeMessage(els);
 
     // Initialise language selector
@@ -1658,6 +1702,12 @@
     if (els.micBtn) {
       els.micBtn.addEventListener('click', () => toggleRecording(els));
     }
+
+    // Fetch page config from server (popup delays, welcome messages per page)
+    // then apply rules for the current page
+    fetchPageConfig();
+    // Apply after a short delay to allow fetchPageConfig to complete
+    setTimeout(() => applyPageRules(els), 800);
 
     // Connect Socket.IO
     loadSocketIO(() => connectSocket(els));

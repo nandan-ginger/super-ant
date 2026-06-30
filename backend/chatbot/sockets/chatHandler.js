@@ -10,6 +10,7 @@ const { upsertSession, touchSession: dbTouchSession } = require('../queries/sess
 const { saveMessage } = require('../queries/messages');
 const { saveLead } = require('../queries/leads');
 const { widgetExists } = require('../queries/widgets');
+const { getPageRuleByPath } = require('../queries/pageRules');
 
 // ─── Widget Code Validation Cache ────────────────────────────────────────────
 // Cache valid widget codes in memory to avoid a DB hit on every socket connect.
@@ -99,48 +100,38 @@ function attachChatHandlers(socket) {
   // ─── context_update ─────────────────────────────────────────────────────────
   socket.on('context_update', async (data) => {
     try {
+      const { pageContext } = data || {};
+
       logger.info(`context_update received for session ${sessionId}`, {
-        title: data?.pageContext?.title,
-        url: data?.pageContext?.url,
-        hasPrecomputedChunks: !!data?.embeddedChunks,
+        title: pageContext?.title,
+        url: pageContext?.url,
       });
-
-      const { pageContext, embeddedChunks } = data || {};
-
-      // ── Fast path: client is re-uploading pre-computed embeddings from sessionStorage
-      if (embeddedChunks && Array.isArray(embeddedChunks) && embeddedChunks.length > 0) {
-        const store = require('../rag/store');
-        store.addChunks(sessionId, embeddedChunks);
-
-        // Restore session
-        await upsertSession({
-          id: sessionId,
-          widgetCode,
-          pageUrl: pageContext?.url,
-          pageTitle: pageContext?.title,
-        }).catch(() => {});
-
-        sessionManager.createOrRefreshSession(sessionId, { widgetCode });
-        if (pageContext) {
-          sessionManager.updatePageContext(sessionId, pageContext, 'rag');
-        }
-
-        logger.info(`Session ${sessionId} restored from client-cached embeddings`, { chunkCount: embeddedChunks.length });
-        socket.emit('context_indexed', {
-          strategy: 'rag',
-          chunkCount: embeddedChunks.length,
-          message: 'Context restored from cache.',
-          restoredFromCache: true,
-        });
-        return;
-      }
 
       if (!pageContext) {
         socket.emit('error', { message: 'context_update: pageContext is required' });
         return;
       }
 
-      // Upsert session in PostgreSQL
+      // ── Lookup matching page rule for this URL (exact pathname match) ──────────
+      if (pageContext.url) {
+        try {
+          const pathname = new URL(pageContext.url).pathname;
+          const matchedRule = await getPageRuleByPath(widgetCode, pathname);
+          sessionManager.updateMatchedPageRule(sessionId, matchedRule);
+          if (matchedRule) {
+            logger.info(`Page rule matched for session ${sessionId}`, {
+              urlPath: matchedRule.urlPath,
+              contextOnlyMode: matchedRule.contextOnlyMode,
+              hasStaticContext: !!matchedRule.staticContext,
+              popupDelay: matchedRule.popupDelaySeconds,
+            });
+          }
+        } catch (urlErr) {
+          logger.warn(`Failed to parse URL for page rule lookup`, { url: pageContext.url, error: urlErr.message });
+        }
+      }
+
+      // Persist session metadata in MongoDB (URL, title — no embedding yet)
       await upsertSession({
         id: sessionId,
         widgetCode,
@@ -148,23 +139,15 @@ function attachChatHandlers(socket) {
         pageTitle: pageContext.title,
       });
 
-      // Store context and index into RAG
-      const { strategy, chunkCount } = await retriever.indexPageContext(sessionId, pageContext);
-      sessionManager.updatePageContext(sessionId, pageContext, strategy);
+      // Store raw page context in memory — embeddings are built lazily on first chat_message
+      sessionManager.createOrRefreshSession(sessionId, { widgetCode });
+      sessionManager.updatePageContext(sessionId, pageContext, 'pending');
 
-      // Retrieve the embedded chunks to send back to client for caching
-      const store = require('../rag/store');
-      const embeddedChunksToCache = store.getChunks ? store.getChunks(sessionId) : null;
+      logger.info(`Page context stored (not yet embedded) for session ${sessionId}`);
 
-      logger.info(`Page indexed for session ${sessionId}`, { strategy, chunkCount });
+      // Tell the widget the context is stored and it can show "Ready"
+      socket.emit('context_ready');
 
-      socket.emit('context_indexed', {
-        strategy,
-        chunkCount,
-        message: `Page indexed successfully using "${strategy}" strategy.`,
-        // Send back embedded chunks so client can cache them in sessionStorage
-        embeddedChunks: embeddedChunksToCache,
-      });
     } catch (err) {
       logger.error('context_update handler error', { sessionId, error: err.message });
       socket.emit('error', { message: 'Failed to process page context. Please try again.' });
@@ -226,8 +209,8 @@ function attachChatHandlers(socket) {
 
       // ── Lead detection ───────────────────────────────────────────────────────
       const { leadDetected, intent } = leadDetector.detectLeadIntent(userMessage);
+      const session = sessionManager.getSession(sessionId);
       if (leadDetected) {
-        const session = sessionManager.getSession(sessionId);
         // Only emit lead_detected once per session (avoid repeated popups)
         if (!session?.leadCaptured) {
           logger.info(`Lead detected for session ${sessionId}`, { intent });
@@ -241,15 +224,70 @@ function attachChatHandlers(socket) {
 
       // ── Context retrieval ────────────────────────────────────────────────────
       const pageContext = sessionManager.getPageContext(sessionId);
-      const hasChunks = require('../rag/store').hasChunks(sessionId);
+      // session already declared above for lead detection
+      const matchedPageRule = session?.matchedPageRule || null;
 
-      // ── If session expired and no embeddings: ask client to re-upload their cached chunks
-      if (!hasChunks && !pageContext) {
-        logger.warn(`Session ${sessionId} has no embeddings and no page context — requesting context from client`);
+      // Build static context from page rule (if any)
+      const staticContext = (matchedPageRule?.staticContext) || '';
+      const contextOnlyMode = !!(matchedPageRule?.contextOnlyMode && staticContext);
+
+
+      // ── If context-only mode: skip RAG entirely, use only admin context ───────
+      if (contextOnlyMode) {
+        logger.debug(`[CONTEXT-ONLY] Skipping RAG — using admin static context for session ${sessionId}`);
+        trackApiCall('streamResponse (Gemini Chat API)', { model: config.geminiChatModel, reason: 'generate reply (static context only)', mode: audio ? 'voice' : 'text' });
+        let fullResponse = '';
+        await streamFn(
+          sessionId,
+          staticContext,
+          userMessage,
+          (chunk) => {
+            fullResponse += chunk;
+            socket.emit('chat_response', { chunk, done: false });
+          }
+        );
+        socket.emit('chat_response', { chunk: '', done: true });
+        if (audio) {
+          trackApiCall('synthesize (Gemini TTS API)', { model: 'gemini-3.1-flash-tts-preview', language: language || 'en' });
+          try {
+            const base64Audio = await voiceService.synthesize(fullResponse, language || 'en');
+            socket.emit('voice_response', { audio: base64Audio });
+          } catch (synthErr) {
+            socket.emit('voice_response_failed', { error: synthErr.message });
+          }
+        }
+        await saveMessage({ sessionId, role: 'assistant', content: fullResponse }).catch(() => {});
+        logger.info(`[MSG-END] Static-context reply complete`, { sessionId, responseLength: fullResponse.length });
+        return;
+      }
+
+      // ── If no page context at all: request client to re-scrape ─────────────────
+      if (!pageContext) {
+        logger.warn(`Session ${sessionId} has no page context — requesting re-scrape from client`);
         socket.emit('context_required', { reason: 'session_expired' });
-        // Hold the current message — client will re-upload then the user can resend
         socket.emit('chat_response', { chunk: '', done: true });
         return;
+      }
+
+      // ── Lazy embedding: create embeddings now on first message if not yet done ───
+      const store = require('../rag/store');
+      let hasChunks = store.hasChunks(sessionId);
+
+      if (!hasChunks) {
+        // This is the user's first message — embed the stored raw page context now
+        logger.info(`Lazy embedding: indexing page context on first message for session ${sessionId}`);
+        trackApiCall('indexPageContext (Gemini Embedding API)', { reason: 'lazy embed on first user message' });
+        try {
+          const { strategy, chunkCount } = await retriever.indexPageContext(sessionId, pageContext);
+          sessionManager.updatePageContext(sessionId, pageContext, strategy);
+          hasChunks = store.hasChunks(sessionId);
+          logger.info(`Lazy embed complete for session ${sessionId}`, { strategy, chunkCount });
+          // Notify widget embeddings are done (fires pending message retry if needed)
+          socket.emit('context_indexed', { strategy, chunkCount });
+        } catch (embedErr) {
+          logger.error('Lazy embedding failed — falling back to direct text', { sessionId, error: embedErr.message });
+          // Fall through — retrieveContext will use direct fallback
+        }
       }
 
       logger.debug(`[DEBUG] retriever.retrieveContext called`, {
@@ -266,6 +304,11 @@ function attachChatHandlers(socket) {
       );
       logger.debug(`[DEBUG] retrieveContext returned`, { sessionId, strategy, contextLength: retrievedContext?.length || 0 });
 
+      // Merge admin static context (if configured) with RAG-retrieved context
+      const finalContext = staticContext
+        ? `[Admin-configured page context]\n${staticContext}\n\n---\n\n${retrievedContext}`
+        : retrievedContext;
+
       // ── Gemini streaming response ────────────────────────────────────────────
       // For voice queries use the voice-optimised prompt (shorter, no markdown)
       // so TTS stays fast and doesn't time out.
@@ -273,12 +316,13 @@ function attachChatHandlers(socket) {
         ? geminiService.streamResponseForVoice
         : geminiService.streamResponse;
 
+
       trackApiCall('streamResponse (Gemini Chat API)', { model: config.geminiChatModel, reason: 'generate assistant reply', mode: audio ? 'voice' : 'text' });
       let fullResponse = '';
 
       await streamFn(
         sessionId,
-        retrievedContext,
+        finalContext,
         userMessage,
         (chunk) => {
           fullResponse += chunk;

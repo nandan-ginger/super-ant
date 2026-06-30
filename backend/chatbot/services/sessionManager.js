@@ -13,6 +13,7 @@ const gemini = require('./gemini');
  *   - Current page context (raw, for fallback)
  *   - Lead data collected so far
  *   - Strategy used for current page (direct / rag / summarize)
+ *   - matchedPageRule: the PageRule doc that matched the current URL (or null)
  *   - Timestamps
  *
  * Sessions auto-expire after TTL minutes of inactivity.
@@ -68,6 +69,7 @@ function createOrRefreshSession(sessionId, { widgetCode, pageUrl, pageTitle } = 
     pageTitle: pageTitle || existing?.pageTitle || null,
     pageContext: existing?.pageContext || null,
     ragStrategy: existing?.ragStrategy || null,
+    matchedPageRule: existing?.matchedPageRule || null,
     leadData: existing?.leadData || {},
     leadCaptured: existing?.leadCaptured || false,
     startedAt: existing?.startedAt || Date.now(),
@@ -136,6 +138,18 @@ function updateLeadData(sessionId, leadData) {
 }
 
 /**
+ * Store the matched PageRule for the current page URL.
+ * @param {string} sessionId
+ * @param {object|null} pageRule
+ */
+function updateMatchedPageRule(sessionId, pageRule) {
+  const session = activeSessions.get(sessionId);
+  if (session) {
+    session.matchedPageRule = pageRule || null;
+  }
+}
+
+/**
  * Retrieve session metadata.
  * @param {string} sessionId
  * @returns {object|null}
@@ -158,6 +172,7 @@ module.exports = {
   getPageContext,
   touchSession,
   updateLeadData,
+  updateMatchedPageRule,
   getSession,
   activeCount,
 };

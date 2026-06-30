@@ -12,6 +12,8 @@ const {
   updateWidget,
   deleteWidget,
 } = require('../queries/widgets');
+const { getPageRulesByWidget } = require('../queries/pageRules');
+
 
 /**
  * Build the embed script snippet for a widget.
@@ -154,6 +156,35 @@ router.put('/:widgetCode', requireAuth, requirePermission('widgets', 'edit'), as
   } catch (err) {
     logger.error('PUT /api/widgets/:widgetCode error', { error: err.message });
     return res.status(500).json({ error: 'Failed to update widget.' });
+  }
+});
+
+/**
+ * GET /api/widgets/:widgetCode/config
+ * Public endpoint (no auth) — returns page rules for the widget.
+ * Called by the embed widget script on page load to determine:
+ *   - popup auto-open delay per page
+ *   - welcome message overrides
+ *
+ * NOTE: staticContext is intentionally excluded — it is applied
+ * server-side in the socket handler and must not be exposed publicly.
+ */
+router.get('/:widgetCode/config', async (req, res) => {
+  try {
+    const rules = await getPageRulesByWidget(req.params.widgetCode);
+    // Return only the fields the widget needs (exclude staticContext)
+    const publicRules = rules.map(r => ({
+      id:                r.id,
+      name:              r.name,
+      urlPath:           r.urlPath,
+      popupDelaySeconds: r.popupDelaySeconds,
+      welcomeMessage:    r.welcomeMessage,
+      contextOnlyMode:   r.contextOnlyMode,
+    }));
+    return res.json({ pageRules: publicRules });
+  } catch (err) {
+    logger.error('GET /api/widgets/:widgetCode/config error', { error: err.message });
+    return res.status(500).json({ error: 'Failed to load widget config.' });
   }
 });
 

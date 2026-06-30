@@ -11,6 +11,7 @@ import {
   HiArrowLeft,
   HiStar,
   HiExclamationTriangle,
+  HiDocumentText,
 } from 'react-icons/hi2'
 import { MdLeaderboard } from 'react-icons/md'
 
@@ -22,11 +23,12 @@ const PRODUCT_NAV = {
     icon: '🤖',
     basePath: '/chatbot',
     items: [
-      { to: '/chatbot/dashboard', label: 'Dashboard',  icon: HiSquares2X2,         section: 'Overview' },
-      { to: '/chatbot/widgets',   label: 'Widgets',    icon: HiPuzzlePiece,         section: 'Manage' },
-      { to: '/chatbot/chats',     label: 'Live Chats', icon: HiChatBubbleLeftRight, section: null },
-      { to: '/chatbot/leads',     label: 'Leads',      icon: MdLeaderboard,         section: null },
-      { to: '/chatbot/visitors',  label: 'Visitors',   icon: HiUserGroup,           section: null },
+      { to: '/chatbot/dashboard',        label: 'Dashboard',       icon: HiSquares2X2,          section: 'Overview' },
+      { to: '/chatbot/widgets',          label: 'Widgets',         icon: HiPuzzlePiece,         section: 'Manage' },
+      { to: '/chatbot/page-management', label: 'Page Management', icon: HiDocumentText,        section: null },
+      { to: '/chatbot/chats',            label: 'Live Chats',      icon: HiChatBubbleLeftRight, section: null },
+      { to: '/chatbot/leads',            label: 'Leads',           icon: MdLeaderboard,         section: null },
+      { to: '/chatbot/visitors',         label: 'Visitors',        icon: HiUserGroup,           section: null },
     ],
   },
   'review-agent': {
