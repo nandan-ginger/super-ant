@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useNavigate, Navigate } from 'react-router-dom'
 import { HiEye, HiEyeSlash, HiLockClosed, HiUser } from 'react-icons/hi2'
 import { useAuth } from '@/context/AuthContext'
+import logo from '@/assets/logo.png'
 
 export default function Login() {
   const { admin, login } = useAuth()
@@ -37,7 +38,7 @@ export default function Login() {
         {/* Logo */}
         <div className="flex flex-col items-center gap-3 mb-8">
           <div className="w-14 h-14 rounded-2xl bg-gradient-purple flex items-center justify-center shadow-purple-lg">
-            <span className="text-3xl">🐜</span>
+            <img src={logo} alt="Logo" className="w-8 h-8 object-contain" />
           </div>
           <div className="text-center">
             <h1 className="text-2xl font-extrabold text-white tracking-tight">SuperAnt</h1>

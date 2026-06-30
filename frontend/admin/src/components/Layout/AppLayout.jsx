@@ -3,6 +3,7 @@ import { useAuth } from '@/context/AuthContext'
 import { Sidebar } from './Sidebar'
 import { Topbar } from './Topbar'
 import { Spinner } from '@/components/ui/Spinner'
+import logo from '@/assets/logo.png'
 
 export function AppLayout({ action, hub = false }) {
   const { admin, loading } = useAuth()
@@ -12,7 +13,7 @@ export function AppLayout({ action, hub = false }) {
       <div className="min-h-screen flex items-center justify-center bg-slate-100">
         <div className="flex flex-col items-center gap-4">
           <div className="w-12 h-12 rounded-2xl bg-gradient-purple flex items-center justify-center shadow-purple">
-            <span className="text-2xl">🐜</span>
+            <img src={logo} alt="Logo" className="w-7 h-7 object-contain" />
           </div>
           <Spinner size="md" />
         </div>

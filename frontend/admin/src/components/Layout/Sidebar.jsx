@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { NavLink, useNavigate, useLocation } from 'react-router-dom'
 import { useAuth } from '@/context/AuthContext'
+import logo from '@/assets/logo.png'
 import {
   HiSquares2X2,
   HiPuzzlePiece,
@@ -92,7 +93,7 @@ export function Sidebar() {
       {/* Logo / Product header */}
       <div className="flex items-center gap-3 px-5 py-5 border-b border-white/[0.06]">
         <div className="w-9 h-9 rounded-xl bg-gradient-purple flex items-center justify-center flex-shrink-0 shadow-purple">
-          <span className="text-lg">🐜</span>
+          <img src={logo} alt="Logo" className="w-5 h-5 object-contain" />
         </div>
         <div>
           <div className="text-[17px] font-extrabold text-slate-50 tracking-tight">SuperAnt</div>

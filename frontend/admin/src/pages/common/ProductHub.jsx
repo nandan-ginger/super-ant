@@ -1,6 +1,7 @@
 import { useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '@/context/AuthContext'
+import logo from '@/assets/logo.png'
 import {
   HiChatBubbleLeftRight,
   HiArrowRightOnRectangle,
@@ -68,7 +69,7 @@ export default function ProductHub() {
       <header className="relative z-10 flex items-center justify-between px-8 py-6 border-b border-white/[0.06]">
         <div className="flex items-center gap-3">
           <div className="w-9 h-9 rounded-xl bg-gradient-purple flex items-center justify-center shadow-purple flex-shrink-0">
-            <span className="text-xl">🐜</span>
+            <img src={logo} alt="Logo" className="w-6 h-6 object-contain" />
           </div>
           <div>
             <div className="text-lg font-extrabold text-slate-50 tracking-tight">SuperAnt</div>
